@@ -1,3 +1,6 @@
-# The shared pipeline. Pin to a tag: a course that is live on Udemy should not
-# have its CSV projection change because the kit moved underneath it.
-git+https://github.com/leonarduk/udemy-practice-test-kit@v1
+# The shared pipeline. Pin to an immutable ref -- a commit SHA, not a branch:
+# a course that is live on Udemy should not have its CSV projection change
+# because the kit moved underneath it. Bump deliberately, and re-run
+# `ptkit generate --check` afterwards; if the CSVs go stale, the kit changed
+# the projection and this course needs regenerating and re-uploading.
+git+https://github.com/leonarduk/udemy-practice-test-kit@REPLACE_WITH_COMMIT_SHA

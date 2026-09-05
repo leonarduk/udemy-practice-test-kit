@@ -27,10 +27,17 @@ Read it before authoring anything.
 ## Install
 
 ```bash
-pip install "git+https://github.com/leonarduk/udemy-practice-test-kit@v1"
+pip install "git+https://github.com/leonarduk/udemy-practice-test-kit@<commit-sha>"
 ```
 
 Zero runtime dependencies; Python 3.11+ (`tomllib`).
+
+**Pin to an immutable ref.** A course bank that is live (or about to be) must
+not have its CSV projection change because the kit moved underneath it. A
+commit SHA is the safest pin — unlike a tag, it cannot be repointed. Bump it
+deliberately, and re-run `ptkit generate --check` in the course repo when you
+do: if the CSVs go stale, the kit changed the projection and the course needs
+regenerating and re-uploading to Udemy.
 
 ## Use
 
