@@ -79,18 +79,41 @@ class OptionHtmlSafetyTests(CourseFixtureTestCase):
         check_option_html(self.ctx)
         self.assertEqual(self.report.warnings, [])
 
-    def test_bare_ampersand_is_flagged_but_an_entity_is_not(self):
+    def test_a_lone_closing_angle_bracket_is_not_flagged(self):
+        # "->" in a lambda or in expected output renders literally in every
+        # browser. Flagging it was four false alarms on a single Java
+        # question, and a check that cries wolf is one people learn to skip.
         path = self.config.csv_path(2)
-        path.write_bytes(path.read_bytes().replace(b"List<String>", b"a &amp; b"))
+        path.write_bytes(
+            path.read_bytes().replace(b"List<String>", b"Pa Pbb -> ccc")
+        )
         self.ctx._csv_rows = None
         check_option_html(self.ctx)
         self.assertEqual(self.report.warnings, [])
 
-        path.write_bytes(path.read_bytes().replace(b"a &amp; b", b"a & b"))
+    def test_an_ampersand_that_is_not_an_entity_is_not_flagged(self):
+        # P&L, M&A, "a & b" all render exactly as written.
+        path = self.config.csv_path(2)
+        path.write_bytes(path.read_bytes().replace(b"List<String>", b"P&L and M&A"))
         self.ctx._csv_rows = None
-        report = Report(stream=io.StringIO())
-        check_option_html(checks_pkg.Context(self.config, self.questions, report))
-        self.assertEqual(len(report.warnings), 1)
+        check_option_html(self.ctx)
+        self.assertEqual(self.report.warnings, [])
+
+    def test_an_ampersand_that_forms_an_entity_is_flagged(self):
+        path = self.config.csv_path(2)
+        path.write_bytes(path.read_bytes().replace(b"List<String>", b"a &nbsp; b"))
+        self.ctx._csv_rows = None
+        check_option_html(self.ctx)
+        self.assertEqual(len(self.report.warnings), 1)
+
+    def test_the_correct_escapes_are_not_flagged(self):
+        path = self.config.csv_path(2)
+        path.write_bytes(
+            path.read_bytes().replace(b"List<String>", b"List&lt;String&gt; &amp; more")
+        )
+        self.ctx._csv_rows = None
+        check_option_html(self.ctx)
+        self.assertEqual(self.report.warnings, [])
 
 
 class ExplanationPresenceTests(CourseFixtureTestCase):

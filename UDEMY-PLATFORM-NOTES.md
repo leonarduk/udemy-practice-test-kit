@@ -57,6 +57,15 @@ be false.
 * **Discovered on:** the Python bank (`<class 'str'>` options vanishing).
   Found in the Spring bank the first time the shared check ran there.
 
+**A lone `>` is not the same problem.** An unmatched `>` renders literally in
+every browser, and Java/stream banks are full of `->` — in lambdas, and in
+expected output like `Pa Pbb Pccc -> ccc`. The original check flagged `>` as
+belt and braces; run against a Java bank that is four false alarms on one
+question, and a check that cries wolf is one people learn to skip. Only `<`
+is flagged now. The same reasoning applies to `&`: `P&L` and `a & b` render
+as written, so only a `&` that actually forms an entity (`&nbsp;`) is
+flagged.
+
 ## 4. Regenerating a CSV is not the same as updating the course
 
 The generated CSVs are an input to Udemy, not a live view of it. Nothing a

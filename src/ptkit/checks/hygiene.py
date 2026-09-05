@@ -23,13 +23,31 @@ BASE_PRIVATE_REPO_PATTERNS = (
     r"mock-exams?[-/]",
 )
 
-# Udemy renders Answer Option cells as HTML, so a bare &, <, or > outside a
-# literal <br> is parsed as markup and dropped or mangled rather than shown as
-# text. An unescaped `<class 'str'>`-shaped answer simply vanishes from the
-# option. Discovered on the Python bank; it applies to every bank, which is
-# exactly why the check lives in the kit rather than in one course repo.
+# Udemy renders Answer Option cells as HTML, so an unescaped `<` opens what
+# the parser takes to be a tag and the text after it is swallowed: an option
+# reading "injected into a List<PaymentGateway> automatically" reaches the
+# learner as "injected into a List automatically", a different claim.
+# Discovered on the Python bank (`<class 'str'>` options vanishing); it
+# applies to every bank, which is why the check lives in the kit.
 OPTION_BR = "<br>"
-BARE_AMPERSAND_RE = re.compile(r"&(?!lt;|gt;|amp;)")
+
+# `<` is the actual danger and is always flagged.
+#
+# A bare `>` is NOT. Every browser renders an unmatched `>` literally, and
+# Java/stream banks are full of `->` in lambdas and expected output
+# ("Pa Pbb Pccc -> ccc"). The check this was ported from flagged `>` too, as
+# belt and braces; against a Java bank that is four false alarms on a single
+# question, and a check that cries wolf is one people learn to skip. Only a
+# `>` that closes something tag-shaped matters, and that is already caught by
+# the `<` that opened it.
+UNESCAPED_LT_RE = re.compile(r"<")
+
+# Likewise `&` only matters when it forms an entity, because that is when the
+# author's literal text is transformed into something else. `P&L`, `M&A` and
+# `a & b` all render exactly as written and are not flagged; `&nbsp;` meant
+# literally is. The three correct escapes are excluded -- they are the fix,
+# not the defect.
+ENTITY_RE = re.compile(r"&(?!lt;|gt;|amp;)(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+);")
 
 
 def build_private_repo_re(private_repos=()):
@@ -100,10 +118,15 @@ def check_option_html(ctx):
                 if not text:
                     continue
                 without_br = text.replace(OPTION_BR, "")
-                if "<" in without_br or ">" in without_br:
-                    offenders.append(f"E{exam}Q{i:02d} option {n}: unescaped < or >")
-                elif BARE_AMPERSAND_RE.search(text):
-                    offenders.append(f"E{exam}Q{i:02d} option {n}: unescaped &")
+                if UNESCAPED_LT_RE.search(without_br):
+                    offenders.append(
+                        f"E{exam}Q{i:02d} option {n}: unescaped '<' -- the text "
+                        f"after it is swallowed as a tag"
+                    )
+                elif ENTITY_RE.search(text):
+                    offenders.append(
+                        f"E{exam}Q{i:02d} option {n}: '&' forms an HTML entity"
+                    )
     if offenders:
         report.warn(
             f"{len(offenders)} answer option(s) contain unescaped HTML "
