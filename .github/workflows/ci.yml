@@ -1,9 +1,8 @@
 name: CI
-on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+# No branch filter on purpose. This repo's default branch is whatever the
+# initial push created, and a library whose CI silently never fires is worse
+# than one that runs a few redundant times.
+on: [push, pull_request]
 permissions:
   contents: read
 jobs:
