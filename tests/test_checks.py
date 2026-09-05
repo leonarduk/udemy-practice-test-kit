@@ -10,7 +10,7 @@ import ptkit
 from ptkit import checks as checks_pkg
 from ptkit.checks.hygiene import build_private_repo_re, check_option_html
 from ptkit.checks.quality import check_duplicates, naive_length_score
-from ptkit.checks.structure import check_explanations_present
+from ptkit.checks.structure import check_explanations_present, check_structure
 from ptkit.model import Question
 from ptkit.report import Report
 
@@ -221,6 +221,78 @@ class DuplicateKeepListTests(CourseFixtureTestCase):
         report = self.run_duplicates(self.questions)
         self.assertTrue(
             any("no longer exists" in w for w in report.warnings), report.warnings
+        )
+
+
+class CompletionRatchetTests(CourseFixtureTestCase):
+    """`[exams] complete` is a one-way ratchet.
+
+    Without it the question-count check is useless as a CI gate while a bank
+    is being authored: an unwritten exam is not a regression, but it is
+    indistinguishable from one if "fewer than the target" always fails, and
+    the build stays red for the entire authoring phase — at which point a
+    real regression is invisible. Ported from the java21 bank, which hit
+    exactly this and solved it there first.
+
+    The fixture bank has exam 1 with 2 questions and exam 2 with 1.
+    """
+
+    def failures_for(self, **overrides):
+        with tempfile.TemporaryDirectory() as tmp:
+            config, questions = build_course(Path(tmp), **overrides)
+            report = Report(stream=io.StringIO())
+            ctx = checks_pkg.Context(config, questions, report)
+            check_structure(ctx)
+            return report.failures
+
+    def test_unauthored_exam_is_not_a_failure(self):
+        # Nothing declared complete: both exams fall short of a raised target
+        # and neither is a defect.
+        self.assertEqual(
+            self.failures_for(**{"counts = { 1 = 2, 2 = 1 }":
+                                 "counts = { 1 = 50, 2 = 50 }"}),
+            [],
+        )
+
+    def test_completed_exam_losing_a_question_still_fails(self):
+        failures = self.failures_for(**{
+            "counts = { 1 = 2, 2 = 1 }": "counts = { 1 = 3, 2 = 1 }",
+            'free = [2]': 'free = [2]\ncomplete = [1]',
+        })
+        self.assertTrue(any("declared complete" in f for f in failures), failures)
+
+    def test_declaring_an_unfinished_exam_complete_fails(self):
+        # The rule that makes the ratchet safe: the relaxed path cannot be
+        # reached by over-claiming.
+        failures = self.failures_for(**{
+            "counts = { 1 = 2, 2 = 1 }": "counts = { 1 = 50, 2 = 1 }",
+            'free = [2]': 'free = [2]\ncomplete = [1]',
+        })
+        self.assertTrue(any("declared complete" in f for f in failures), failures)
+
+    def test_too_many_questions_fails_even_when_not_complete(self):
+        failures = self.failures_for(**{
+            "counts = { 1 = 2, 2 = 1 }": "counts = { 1 = 1, 2 = 1 }",
+        })
+        self.assertTrue(
+            any("has 2 questions, expected 1" in f for f in failures), failures
+        )
+
+    def test_a_complete_and_correct_exam_passes(self):
+        self.assertEqual(
+            self.failures_for(**{'free = [2]': 'free = [2]\ncomplete = [1, 2]'}), []
+        )
+
+    def test_csv_out_of_sync_with_master_always_fails(self):
+        # Desync between the CSV and the master is never acceptable, at any
+        # stage of authoring — the CSV is a projection of the master.
+        path = self.config.csv_path(1)
+        lines = path.read_bytes().split(b"\r\n")
+        path.write_bytes(b"\r\n".join(lines[:-2] + [b""]))  # drop a row
+        self.ctx._csv_rows = None
+        check_structure(self.ctx)
+        self.assertTrue(
+            any("regenerate" in f for f in self.report.failures), self.report.failures
         )
 
 

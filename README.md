@@ -87,6 +87,7 @@ require_difficulty = false
 numbers = [1, 2, 3, 4, 5, 6]
 counts = { 1 = 50, 2 = 50, 3 = 50, 4 = 50, 5 = 50, 6 = 50 }
 free = []                      # exam numbers that are the free sample
+complete = [1, 2]              # exams declared FINISHED -- see below
 
 [domains]
 1 = "Handling Date, Time, Text, Numeric and Boolean Values"
@@ -108,6 +109,29 @@ left = "E1Q01"
 right = "E1Q02"
 reason = "different JLS rule behind a shared stem scaffold"
 ```
+
+## The completion ratchet
+
+`[exams] complete` lists the exams declared finished. It exists because the
+question-count check is useless as a CI gate while a bank is being authored:
+an exam nobody has written yet is not a regression, but it is
+indistinguishable from one if "fewer than the target" always fails — so the
+build stays red for the entire authoring phase, and a real regression is
+invisible exactly when the gate would be worth having.
+
+* an exam **not** listed may have fewer than its target — reported as
+  `....` pending, not a failure;
+* an exam **listed** must have *exactly* its target — a finished exam losing
+  questions is a regression and fails;
+* **more** than the target always fails, listed or not: that can only be a
+  numbering or duplication mistake;
+* a CSV whose row count disagrees with `questions-master.md` always fails, at
+  any stage — the CSV is a projection of the master and desync is never
+  acceptable.
+
+One-way by policy: add an exam the moment it reaches its full count, in the
+same commit that completes it, and never remove one — removing it silently
+lowers the bar on content already held to it.
 
 ## Course-specific checks
 

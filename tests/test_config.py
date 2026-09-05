@@ -128,6 +128,26 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(config.reviewed_reason("E1Q02", "E1Q01"), "same scaffold")
         self.assertIsNone(config.reviewed_reason("E1Q03", "E1Q04"))
 
+    def test_complete_must_name_known_exams(self):
+        self.assert_config_error(
+            MINIMAL.replace("counts = { 1 = 2 }", "counts = { 1 = 2 }\ncomplete = [1, 7]"),
+            "complete lists exam(s) 7",
+        )
+
+    def test_complete_defaults_to_nothing_declared(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(tmp, MINIMAL))
+        self.assertEqual(config.complete_exams, frozenset())
+        self.assertFalse(config.bank_is_complete())
+
+    def test_bank_is_complete_once_every_exam_is_declared(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(
+                tmp, MINIMAL.replace("counts = { 1 = 2 }",
+                                     "counts = { 1 = 2 }\ncomplete = [1]")))
+        self.assertTrue(config.is_complete(1))
+        self.assertTrue(config.bank_is_complete())
+
     def test_bad_toml_names_the_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ConfigError) as caught:

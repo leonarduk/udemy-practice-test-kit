@@ -109,6 +109,26 @@ class CourseConfig:
         # destination must filter through is_public_safe() rather than
         # reimplementing the distinction.
         self.free_exams = {int(n) for n in exams.get("free", [])}
+        # Exams declared finished. A one-way ratchet, and the single reason it
+        # exists is that the question-count checks are useless as a CI gate
+        # while a bank is being authored: an exam that has not been written
+        # yet is not a regression, but it is indistinguishable from one if
+        # "fewer than the target" always fails. Every exam listed here must
+        # have exactly its full count -- a finished exam losing questions IS a
+        # regression and fails the build -- while an exam not listed may have
+        # fewer, reported as progress rather than as a defect.
+        #
+        # Add an exam the moment it reaches its full count, in the same commit
+        # that completes it. Never remove one: that silently lowers the bar on
+        # content already held to it. Having too MANY questions always fails,
+        # listed or not, since that can only be a numbering mistake.
+        self.complete_exams = frozenset(int(n) for n in exams.get("complete", []))
+        unknown = sorted(self.complete_exams - set(self.exams))
+        if unknown:
+            raise ConfigError(
+                f"[exams] complete lists exam(s) {', '.join(map(str, unknown))} "
+                f"that are not in numbers"
+            )
 
         domains = self._table("domains", required=False)
         self.domain_names = {int(k): str(v) for k, v in domains.items()}
@@ -189,6 +209,14 @@ class CourseConfig:
         filter through this rather than reimplementing the free/paid split.
         """
         return self.tier_of(question.exam) == "free"
+
+    def is_complete(self, exam):
+        """True if `exam` is declared finished -- see complete_exams."""
+        return exam in self.complete_exams
+
+    def bank_is_complete(self):
+        """True once every exam is declared finished."""
+        return all(self.is_complete(exam) for exam in self.exams)
 
     @property
     def total_questions(self):

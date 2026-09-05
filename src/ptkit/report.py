@@ -1,13 +1,15 @@
 """Collects check results and decides the process exit code.
 
-Two severities, and the distinction is load-bearing:
+Three severities, and the distinctions are load-bearing:
 
-  fail  STRUCTURAL -- something that would break the Udemy bulk upload or
-        corrupt an exam. Blocks CI.
-  warn  ITEM QUALITY -- a psychometric or hygiene finding that is expected to
-        improve over time rather than being a pass/fail gate today.
+  fail     STRUCTURAL -- something that would break the Udemy bulk upload or
+           corrupt an exam. Blocks CI.
+  warn     ITEM QUALITY -- a psychometric or hygiene finding that is expected
+           to improve over time rather than being a pass/fail gate today.
+  pending  NOT DONE YET -- work that has not been written, as opposed to
+           written badly. Neither a failure nor a warning.
 
-A check that cannot decide which of the two it is has not been thought
+A check that cannot decide which of the three it is has not been thought
 through yet.
 """
 
@@ -37,6 +39,17 @@ class Report:
 
     def ok(self, message):
         self._print(f"  ok    {message}")
+
+    def pending(self, message):
+        """Report work that is simply not done yet.
+
+        Deliberately neither a failure nor a warning: an unwritten exam is not
+        a defect in what HAS been written, and counting it as either would
+        leave CI permanently red through the whole authoring phase -- at which
+        point a real regression is invisible, which is the opposite of what
+        the gate is for. See CourseConfig.complete_exams.
+        """
+        self._print(f"  ....  {message}")
 
     def detail(self, message):
         """An indented continuation line under the finding above it."""

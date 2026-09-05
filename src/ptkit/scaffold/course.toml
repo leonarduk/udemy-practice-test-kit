@@ -25,6 +25,14 @@ numbers = [1, 2, 3, 4, 5, 6]
 counts = { 1 = 50, 2 = 50, 3 = 50, 4 = 50, 5 = 50, 6 = 50 }
 # Exam numbers offered as the free sample, if any.
 free = []
+# Exams declared FINISHED. A one-way ratchet. Without it the count check is
+# useless as a CI gate during authoring: an unwritten exam is not a
+# regression, but is indistinguishable from one if "fewer than the target"
+# always fails, so the build stays red for months and a real regression is
+# invisible. An exam listed here must have EXACTLY its full count; one not
+# listed may have fewer, reported as progress. Add an exam the moment it is
+# complete, in the same commit. Never remove one.
+complete = []
 
 # TODO: the official exam domains, verbatim from the vendor's exam guide.
 [domains]

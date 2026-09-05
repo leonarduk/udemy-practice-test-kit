@@ -14,20 +14,42 @@ def check_structure(ctx):
     per_exam = collections.Counter(q.exam for q in ctx.questions)
     for exam in config.exams:
         expected = config.exam_question_counts[exam]
-        if per_exam[exam] != expected:
+        actual = per_exam[exam]
+        if actual > expected:
+            # Always a defect, declared complete or not: more questions than
+            # the exam is supposed to have can only be a numbering or
+            # duplication mistake.
+            report.fail(f"exam {exam} has {actual} questions, expected {expected}")
+        elif config.is_complete(exam):
+            if actual != expected:
+                report.fail(
+                    f"exam {exam} is declared complete in course.toml's "
+                    f"[exams] complete but has {actual} questions, "
+                    f"expected {expected}"
+                )
+            else:
+                report.ok(f"exam {exam}: {actual}/{expected} (complete)")
+        else:
+            report.pending(f"exam {exam}: {actual}/{expected} not yet authored")
+
+    expected_total = config.total_questions
+    if config.bank_is_complete():
+        if len(ctx.questions) != expected_total:
             report.fail(
-                f"exam {exam} has {per_exam[exam]} questions, expected {expected}"
+                f"{len(ctx.questions)} questions in total, expected {expected_total}"
             )
-    if len(ctx.questions) != config.total_questions:
-        report.fail(
-            f"{len(ctx.questions)} questions in total, "
-            f"expected {config.total_questions}"
-        )
+        else:
+            counts = ", ".join(
+                f"{exam}={config.exam_question_counts[exam]}" for exam in config.exams
+            )
+            report.ok(f"{expected_total} questions ({counts})")
     else:
-        counts = ", ".join(
-            f"{exam}={config.exam_question_counts[exam]}" for exam in config.exams
+        remaining = expected_total - len(ctx.questions)
+        outstanding = sum(1 for e in config.exams if not config.is_complete(e))
+        report.pending(
+            f"{len(ctx.questions)}/{expected_total} questions authored "
+            f"({remaining} remaining across {outstanding} exam(s))"
         )
-        report.ok(f"{config.total_questions} questions ({counts})")
 
     # The parser already rejects a question without exactly the configured
     # option letters and one correct answer, so reaching here means the
@@ -59,7 +81,16 @@ def check_structure(ctx):
     for exam, rows in ctx.csv_rows.items():
         name = config.csv_path(exam).name
         expected = config.exam_question_counts[exam]
-        if len(rows) != expected:
+        # The CSV is a projection of the master, so disagreeing with the master
+        # is a real desync and always fails -- regardless of how far through
+        # authoring this exam is. Falling short of the *target* is only a
+        # failure once the exam is declared complete.
+        if len(rows) != per_exam[exam]:
+            report.fail(
+                f"{name} has {len(rows)} rows but {config.master.name} has "
+                f"{per_exam[exam]} questions for exam {exam} -- regenerate"
+            )
+        elif config.is_complete(exam) and len(rows) != expected:
             report.fail(f"{name} has {len(rows)} rows, expected {expected}")
         if rows and list(rows[0].keys()) != COLUMNS:
             report.fail(f"{name} header does not match the template")
