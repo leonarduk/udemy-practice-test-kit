@@ -31,11 +31,12 @@ COLUMNS = [
     "Correct Answers", "Overall Explanation", "Domain",
 ]
 
-# Only the layout that has been ported and verified against a real bank is
-# listed. The parser dispatches on this name (see parse.py's PARSERS), so
-# adding the domain-grouped layout used by the risk-engineering bank is a
-# self-contained change: write the parser, register it, add the name here.
-LAYOUTS = ("exam-grouped",)
+# The parser dispatches on this name -- see parse.py's PARSERS and
+# RAW_BODY_LOADERS. "exam-grouped" is every Oracle/Spring bank; "domain-grouped"
+# is for a bank transcribed module-by-module from a domain-organized source
+# (e.g. risk-eng-for-swe), where a heading groups a run of questions instead
+# of "Domain N" being repeated inline in each one.
+LAYOUTS = ("exam-grouped", "domain-grouped")
 
 
 class ConfigError(Exception):

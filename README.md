@@ -162,11 +162,19 @@ through yet.
 
 ## Layouts
 
-Only `exam-grouped` is implemented, because it is the only one that has been
-verified byte-for-byte against a real bank. The parser dispatches on the
-layout name (`ptkit.parse.PARSERS`), so adding the domain-grouped layout used
-by the risk-engineering bank is a self-contained change: write the parser,
-register it, add the name to `config.LAYOUTS`.
+The parser dispatches on `[layout] kind` (`ptkit.parse.PARSERS`), so a new
+master-file grammar is a self-contained addition: write the parser, register
+it, add the name to `config.LAYOUTS`.
+
+- `exam-grouped`: `# Exam N` / `## QNN`. Every Oracle/Spring bank. Each
+  question's stem carries an inline `Domain N` prefix.
+- `domain-grouped`: `# Exam N` / `## Domain M — Name` / `### QNN`. For a bank
+  transcribed module-by-module from a domain-organized source (e.g.
+  risk-eng-for-swe) — the domain is a heading grouping a run of questions,
+  not a line repeated in each one. Question numbers restart at `### Q01` in
+  every domain section, matching each source module's own numbering; the
+  parser renumbers them sequentially within the exam so every `Question.qid`
+  stays unique.
 
 ## Tests
 

@@ -20,6 +20,27 @@ Layouts
     **Correct answer:** B
     **Explanation:** ...
     ---
+
+"domain-grouped" (a bank transcribed module-by-module from a source that is
+itself organized by domain, e.g. risk-eng-for-swe -- the domain is a heading
+grouping a whole run of questions, rather than a line repeated in every
+question's stem):
+
+    # Exam 1
+    ## Domain 5 — Trade Lifecycle & Settlement
+    ### Q01
+    ```java
+    ...
+    ```
+    A. ...
+    B. ...
+    **Correct answer:** B
+    **Explanation:** ...
+    ---
+
+Question numbers restart at 1 in each "## Domain" section, matching a source
+transcribed one module at a time; parse_domain_grouped renumbers them
+sequentially within the exam so every Question.qid stays unique.
 """
 
 import re
@@ -45,6 +66,13 @@ DOMAIN_PREFIX_RE = re.compile(
 
 EXAM_HEADING_RE = re.compile(r"^# Exam (\d+)\s*$", re.M)
 QUESTION_HEADING_RE = re.compile(r"^## (Q\d+)\s*$", re.M)
+
+# "## Domain 5 — Trade Lifecycle & Settlement", one level up from a
+# domain-grouped bank's "### QNN" (exam-grouped's "## QNN" sits one level
+# higher because it has no domain-heading layer between it and "# Exam N").
+DOMAIN_HEADING_RE = re.compile(r"^## Domain (\d+)\s*—\s*(.*?)\s*$", re.M)
+DOMAIN_QUESTION_HEADING_RE = re.compile(r"^### (Q\d+)\s*$", re.M)
+
 DIFFICULTY_RE = re.compile(r"^\*\*Difficulty:\*\*\s*(\S+)\s*$", re.M)
 DIFFICULTY_LEVELS = ("Easy", "Medium", "Hard")
 
@@ -94,11 +122,68 @@ def clean_stem(raw, require_domain_prefix=True):
     return strip_fences(raw).strip(), domain_number
 
 
+def _parse_question_fields(body, where, config, answer_pattern, option_pattern):
+    """Extract options, answer, explanation and difficulty from one question body.
+
+    This grammar is the same for every layout; only where the stem's domain
+    comes from differs (an inline prefix vs. an enclosing heading), so each
+    layout's own parser cleans `raw_stem` -- everything before the first
+    option line -- itself.
+
+    Returns (raw_stem, options, answer, explanation, difficulty).
+    """
+    letters = config.option_letters
+
+    answer_match = answer_pattern.search(body)
+    if not answer_match:
+        raise ParseError(f"{where}: no '**Correct answer:** X' line")
+
+    explanation_match = EXPLANATION_RE.search(body)
+    if not explanation_match:
+        raise ParseError(f"{where}: no '**Explanation:**' block")
+
+    # Options run from the first "A. " line up to the answer line.
+    options_region = body[:answer_match.start()]
+    first_option = re.search(rf"^{letters[0]}\.[ \t]", options_region, re.M)
+    if not first_option:
+        raise ParseError(f"{where}: no '{letters[0]}. ' option line")
+
+    options = {}
+    for letter, option_text in option_pattern.findall(
+        options_region[first_option.start():] + "**Correct answer:**"
+    ):
+        if letter in options:
+            raise ParseError(f"{where}: duplicate option '{letter}'")
+        options[letter] = option_text.strip()
+    if sorted(options) != list(letters):
+        raise ParseError(
+            f"{where}: expected options {'-'.join(letters[::len(letters) - 1])}, "
+            f"got {sorted(options)}"
+        )
+
+    difficulty = None
+    difficulty_match = DIFFICULTY_RE.search(body)
+    if difficulty_match:
+        difficulty = difficulty_match.group(1)
+        if difficulty not in DIFFICULTY_LEVELS:
+            raise ParseError(
+                f"{where}: Difficulty is {difficulty!r}, expected one of "
+                f"{', '.join(DIFFICULTY_LEVELS)}"
+            )
+    elif config.require_difficulty:
+        raise ParseError(f"{where}: no '**Difficulty:**' line")
+
+    raw_stem = options_region[:first_option.start()]
+    return (
+        raw_stem, options, answer_match.group(1),
+        explanation_match.group(1).strip(), difficulty,
+    )
+
+
 def parse_exam_grouped(text, config):
     """Parse the "# Exam N / ## QNN" layout into Questions, in document order."""
-    letters = config.option_letters
-    answer_pattern = answer_re(letters)
-    option_pattern = option_re(letters)
+    answer_pattern = answer_re(config.option_letters)
+    option_pattern = option_re(config.option_letters)
 
     parts = EXAM_HEADING_RE.split(text)[1:]
     if not parts:
@@ -113,48 +198,11 @@ def parse_exam_grouped(text, config):
             body = blocks[j + 1]
             where = f"E{exam}Q{number:02d}"
 
-            answer_match = answer_pattern.search(body)
-            if not answer_match:
-                raise ParseError(f"{where}: no '**Correct answer:** X' line")
-
-            explanation_match = EXPLANATION_RE.search(body)
-            if not explanation_match:
-                raise ParseError(f"{where}: no '**Explanation:**' block")
-
-            # Options run from the first "A. " line up to the answer line.
-            options_region = body[:answer_match.start()]
-            first_option = re.search(rf"^{letters[0]}\.[ \t]", options_region, re.M)
-            if not first_option:
-                raise ParseError(f"{where}: no '{letters[0]}. ' option line")
-
-            options = {}
-            for letter, option_text in option_pattern.findall(
-                options_region[first_option.start():] + "**Correct answer:**"
-            ):
-                if letter in options:
-                    raise ParseError(f"{where}: duplicate option '{letter}'")
-                options[letter] = option_text.strip()
-            if sorted(options) != list(letters):
-                raise ParseError(
-                    f"{where}: expected options {'-'.join(letters[::len(letters) - 1])}, "
-                    f"got {sorted(options)}"
-                )
-
-            difficulty = None
-            difficulty_match = DIFFICULTY_RE.search(body)
-            if difficulty_match:
-                difficulty = difficulty_match.group(1)
-                if difficulty not in DIFFICULTY_LEVELS:
-                    raise ParseError(
-                        f"{where}: Difficulty is {difficulty!r}, expected one of "
-                        f"{', '.join(DIFFICULTY_LEVELS)}"
-                    )
-            elif config.require_difficulty:
-                raise ParseError(f"{where}: no '**Difficulty:**' line")
-
+            raw_stem, options, answer, explanation, difficulty = _parse_question_fields(
+                body, where, config, answer_pattern, option_pattern
+            )
             stem, domain_number = clean_stem(
-                options_region[:first_option.start()],
-                require_domain_prefix=config.require_domain_prefix,
+                raw_stem, require_domain_prefix=config.require_domain_prefix,
             )
             if domain_number is not None and domain_number not in config.domain_names:
                 raise ParseError(f"{where}: unknown domain number {domain_number}")
@@ -165,8 +213,8 @@ def parse_exam_grouped(text, config):
                 number=number,
                 stem=stem,
                 options=options,
-                answer=answer_match.group(1),
-                explanation=explanation_match.group(1).strip(),
+                answer=answer,
+                explanation=explanation,
                 domain_number=domain_number,
                 domain=domain,
                 difficulty=difficulty,
@@ -174,8 +222,78 @@ def parse_exam_grouped(text, config):
     return questions
 
 
+def parse_domain_grouped(text, config):
+    """Parse the "# Exam N / ## Domain M — Name / ### QNN" layout into Questions.
+
+    Question numbers restart at "### Q01" in every domain section -- the
+    convention a bank transcribed one source module at a time naturally
+    falls into, since each module has its own internal numbering. Renumbered
+    sequentially within the exam here (in document order, across domain
+    boundaries) so every Question.qid is still unique; the visible "Q01" is
+    a per-domain label, not read back as the model's `number`.
+    """
+    answer_pattern = answer_re(config.option_letters)
+    option_pattern = option_re(config.option_letters)
+
+    parts = EXAM_HEADING_RE.split(text)[1:]
+    if not parts:
+        raise ParseError("no '# Exam N' headings found")
+
+    questions = []
+    for i in range(0, len(parts), 2):
+        exam = int(parts[i])
+        domain_parts = DOMAIN_HEADING_RE.split(parts[i + 1])[1:]
+        if not domain_parts:
+            raise ParseError(f"E{exam}: no '## Domain N — Name' headings found")
+
+        running_number = 0
+        for k in range(0, len(domain_parts), 3):
+            domain_number = int(domain_parts[k])
+            heading_name = domain_parts[k + 1].strip()
+            domain_body = domain_parts[k + 2]
+            if domain_number not in config.domain_names:
+                raise ParseError(
+                    f"E{exam} Domain {domain_number}: unknown domain number"
+                )
+            domain = config.domain_names[domain_number]
+            if heading_name and heading_name != domain:
+                raise ParseError(
+                    f"E{exam} Domain {domain_number}: heading says "
+                    f"{heading_name!r}, course.toml [domains] says {domain!r}"
+                )
+
+            blocks = DOMAIN_QUESTION_HEADING_RE.split(domain_body)[1:]
+            if not blocks:
+                raise ParseError(
+                    f"E{exam} Domain {domain_number}: no '### QNN' headings found"
+                )
+            for j in range(0, len(blocks), 2):
+                label = blocks[j]
+                body = blocks[j + 1]
+                where = f"E{exam} Domain {domain_number} {label}"
+
+                raw_stem, options, answer, explanation, difficulty = _parse_question_fields(
+                    body, where, config, answer_pattern, option_pattern
+                )
+                running_number += 1
+
+                questions.append(Question(
+                    exam=exam,
+                    number=running_number,
+                    stem=strip_fences(raw_stem).strip(),
+                    options=options,
+                    answer=answer,
+                    explanation=explanation,
+                    domain_number=domain_number,
+                    domain=domain,
+                    difficulty=difficulty,
+                ))
+    return questions
+
+
 PARSERS = {
     "exam-grouped": parse_exam_grouped,
+    "domain-grouped": parse_domain_grouped,
 }
 
 
@@ -187,17 +305,7 @@ def parse_master(config, path=None):
     return PARSERS[config.layout](text, config)
 
 
-def load_raw_bodies(config, path=None):
-    """qid -> raw (pre-fence-stripping) Markdown body, for code-only comparison.
-
-    parse_master drops the fence marker lines but keeps the code content inline
-    in Question.stem with no delimiter, so comparing *just the code* (as
-    opposed to the whole stem, prose included) needs its own pass over the raw
-    file.
-    """
-    source = path or config.master
-    text = source.read_text(encoding="utf-8") if hasattr(source, "read_text") \
-        else open(source, encoding="utf-8").read()
+def _raw_bodies_exam_grouped(text):
     bodies = {}
     parts = EXAM_HEADING_RE.split(text)[1:]
     for i in range(0, len(parts), 2):
@@ -207,3 +315,40 @@ def load_raw_bodies(config, path=None):
             number = int(blocks[j][1:])
             bodies[f"E{exam}Q{number:02d}"] = blocks[j + 1]
     return bodies
+
+
+def _raw_bodies_domain_grouped(text):
+    bodies = {}
+    parts = EXAM_HEADING_RE.split(text)[1:]
+    for i in range(0, len(parts), 2):
+        exam = int(parts[i])
+        domain_parts = DOMAIN_HEADING_RE.split(parts[i + 1])[1:]
+        running_number = 0
+        for k in range(0, len(domain_parts), 3):
+            blocks = DOMAIN_QUESTION_HEADING_RE.split(domain_parts[k + 2])[1:]
+            for j in range(0, len(blocks), 2):
+                running_number += 1
+                bodies[f"E{exam}Q{running_number:02d}"] = blocks[j + 1]
+    return bodies
+
+
+RAW_BODY_LOADERS = {
+    "exam-grouped": _raw_bodies_exam_grouped,
+    "domain-grouped": _raw_bodies_domain_grouped,
+}
+
+
+def load_raw_bodies(config, path=None):
+    """qid -> raw (pre-fence-stripping) Markdown body, for code-only comparison.
+
+    parse_master drops the fence marker lines but keeps the code content inline
+    in Question.stem with no delimiter, so comparing *just the code* (as
+    opposed to the whole stem, prose included) needs its own pass over the raw
+    file. Mirrors the layout's own parser's heading traversal, minus the
+    grammar validation -- this must find exactly the same qids parse_master
+    does, or the two would silently talk past each other.
+    """
+    source = path or config.master
+    text = source.read_text(encoding="utf-8") if hasattr(source, "read_text") \
+        else open(source, encoding="utf-8").read()
+    return RAW_BODY_LOADERS[config.layout](text)
