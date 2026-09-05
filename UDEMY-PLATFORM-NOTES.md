@@ -66,6 +66,32 @@ is flagged now. The same reasoning applies to `&`: `P&L` and `a & b` render
 as written, so only a `&` that actually forms an entity (`&nbsp;`) is
 flagged.
 
+## 3a. Which columns are HTML-parsed — the per-column answer
+
+Asked on java21 PR #10: a scan there found `<` in 42 **Question** cells (`i < 3`,
+`List<Integer>`) and 7 **Overall Explanation** cells. Does escaping need to
+extend beyond Answer Options? Settled from existing evidence rather than
+guessed:
+
+| Column | Bulk-upload (CSV) path | Evidence |
+|---|---|---|
+| **Question** | **Plain text.** A `<` is displayed, not swallowed. | The Python bank uploaded a literal `<pre class="prettyprint linenums">` block and it **rendered as visible junk text** rather than formatting the code (its issue #69). A field that shows you the tag is not parsing it. |
+| **Answer Option N** | **HTML.** A `<` opens a tag and eats what follows. | Its issue #67 — `<class 'str'>` options silently losing their text. Confirmed again on the Spring bank. |
+| **Overall Explanation** | **Not established.** | No one has tested it. The Python bank proved only that *Markdown* does not render there (backticks and `*emphasis*` reached learners as literal punctuation, its issues #25/#42). That says nothing about HTML. |
+
+So `i < 3` in a stem is fine, and always has been. The seven Overall
+Explanation cells are the one genuinely open risk.
+
+**How to settle it cheaply, before the first upload of a bank that has `<` in
+an explanation:** put `<b>x</b>` in one explanation on a draft practice test,
+upload, and look at the review screen. Bold `x` means HTML; the literal tag
+means plain text. One question, one upload, and the row above stops saying
+"not established".
+
+Deliberately *not* guarded by a check until then. Warning on something that
+may well be harmless is how a check earns a reputation for crying wolf — see
+the note on `>` above, which cost exactly that on the Java bank.
+
 ## 4. Regenerating a CSV is not the same as updating the course
 
 The generated CSVs are an input to Udemy, not a live view of it. Nothing a
