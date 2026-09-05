@@ -1,0 +1,39 @@
+# Course configuration for udemy-practice-test-kit (ptkit).
+# The pipeline lives in the kit; everything specific to THIS bank lives here.
+# Subject-specific checks that need code go in tools/course_checks.py.
+
+[course]
+name = "TODO: Course title as it appears on Udemy"
+slug = "todo-slug"
+
+[layout]
+kind = "exam-grouped"
+master = "questions-master.md"
+output_dir = "."
+template = "PracticeTestBulkQuestionUploadTemplate_V2.2.csv"
+csv_name = "practice-test-{exam}.csv"
+option_letters = "ABCD"
+# Every stem must open with a "Domain N — Topic." line. The digit populates
+# the CSV's Domain column; the marker itself never reaches the learner.
+require_domain_prefix = true
+require_difficulty = false
+
+[exams]
+numbers = [1, 2, 3, 4, 5, 6]
+# Match the real exam's length. Six full-length mocks is the Udemy ceiling
+# for a practice-test-only course -- see UDEMY-PLATFORM-NOTES.md.
+counts = { 1 = 50, 2 = 50, 3 = 50, 4 = 50, 5 = 50, 6 = 50 }
+# Exam numbers offered as the free sample, if any.
+free = []
+
+# TODO: the official exam domains, verbatim from the vendor's exam guide.
+[domains]
+1 = "TODO"
+
+[checks]
+duplicate_threshold = 0.62
+# Private upstream repos whose names must never reach a learner: the
+# reference would be a dead link to a repo they cannot open.
+private_repos = []
+# Strips "Source: <owner>/<repo> ..." provenance tails out of explanations.
+citation_owners = ["leonarduk"]

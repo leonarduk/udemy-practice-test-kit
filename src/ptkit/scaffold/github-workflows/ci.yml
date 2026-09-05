@@ -1,0 +1,41 @@
+name: CI
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Validate question bank
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install udemy-practice-test-kit
+        run: pip install -r requirements-dev.txt
+      - name: Structural and item-quality validation
+        run: ptkit validate
+      - name: CSVs are in sync with questions-master.md
+        run: ptkit generate --check
+
+  lint-workflows:
+    name: Lint GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+        run: |
+          curl -fsSL --retry 5 --retry-delay 5 \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -o actionlint.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          sudo mv actionlint /usr/local/bin/actionlint
+          rm actionlint.tar.gz
+      - name: Run actionlint
+        run: actionlint

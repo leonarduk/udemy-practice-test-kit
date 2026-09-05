@@ -1,0 +1,3 @@
+# The shared pipeline. Pin to a tag: a course that is live on Udemy should not
+# have its CSV projection change because the kit moved underneath it.
+git+https://github.com/leonarduk/udemy-practice-test-kit@v1

@@ -1,0 +1,26 @@
+[course]
+name = "Fixture Course"
+slug = "fixture"
+
+[layout]
+kind = "exam-grouped"
+master = "questions-master.md"
+output_dir = "."
+template = "PracticeTestBulkQuestionUploadTemplate_V2.2.csv"
+csv_name = "practice-test-{exam}.csv"
+option_letters = "ABCD"
+require_domain_prefix = true
+
+[exams]
+numbers = [1, 2]
+counts = { 1 = 2, 2 = 1 }
+free = [2]
+
+[domains]
+1 = "First Domain"
+5 = "Fifth Domain"
+
+[checks]
+duplicate_threshold = 0.62
+private_repos = ["private_upstream_repo"]
+citation_owners = ["leonarduk"]

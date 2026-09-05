@@ -1,0 +1,50 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+permissions:
+  contents: read
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.11 is the floor (tomllib); 3.12 is what the course repos' CI uses.
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install -e .
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Scaffold a course and check it is well formed
+        run: |
+          ptkit new-course /tmp/scaffold-smoke
+          test -f /tmp/scaffold-smoke/course.toml
+          test -f /tmp/scaffold-smoke/.github/workflows/ci.yml
+          test -f /tmp/scaffold-smoke/.gitignore
+          python -c "import tomllib,pathlib; tomllib.loads(pathlib.Path('/tmp/scaffold-smoke/course.toml').read_text())"
+
+  lint-workflows:
+    name: Lint GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+        run: |
+          curl -fsSL --retry 5 --retry-delay 5 \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -o actionlint.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          sudo mv actionlint /usr/local/bin/actionlint
+          rm actionlint.tar.gz
+      - name: Run actionlint
+        run: actionlint
