@@ -92,11 +92,24 @@ from .text import strip_fences
 # authored where most questions are otherwise a bare code snippet with no
 # framing at all -- so it is kept as the stem's opening line instead of being
 # discarded along with the "Domain N" marker itself.
+#
+# The parenthetical's own content allows one level of nested parens --
+# "Domain 9 (Spring AI advanced (RAG, tools, MCP, streaming))." is real
+# content. `[^)]*` alone stops at the FIRST ')', landing match.end() inside
+# the topic and leaking its tail (") ...") into the learner-facing stem for
+# every question in that domain. Python's re has no recursive-balance
+# construct, so this only handles one level deep -- the deepest seen in
+# practice -- not arbitrary nesting.
 DOMAIN_PREFIX_RE = re.compile(
-    r"^\s*Domain (\d+)\s*(?:\(([^)]*)\)|—[ \t]*([^\n]*))\s*[.—]?\s*"
+    r"^\s*Domain (\d+)\s*(?:\((?:[^()]|\([^()]*\))*\)|—[ \t]*([^\n]*))\s*[.—]?\s*"
 )
 
-EXAM_HEADING_RE = re.compile(r"^# Exam (\d+)\s*$", re.M)
+# Trailing text after the number ("# Exam 1 (49 questions; domains 1-9)") is
+# tolerated and ignored, matching domain-grouped's own DOMAIN_HEADING_RE and
+# section-grouped's SECTION_HEADING_RE, both of which already carry
+# descriptive text past their number/name. A bank whose exam heading is a
+# bare "# Exam N" (every adopter so far) matches either way.
+EXAM_HEADING_RE = re.compile(r"^# Exam (\d+)\b.*$", re.M)
 QUESTION_HEADING_RE = re.compile(r"^## (Q\d+)\s*$", re.M)
 
 # "## Domain 5 — Trade Lifecycle & Settlement", one level up from a
@@ -199,7 +212,7 @@ def clean_stem(raw, require_domain_prefix=True):
         return strip_fences(raw).strip(), None
     domain_number = int(match.group(1))
     raw = raw[match.end():]
-    topic = (match.group(3) or "").strip()
+    topic = (match.group(2) or "").strip()
     if topic:
         raw = f"{topic}\n{raw}"
     return strip_fences(raw).strip(), domain_number
@@ -240,10 +253,15 @@ def _parse_question_fields(body, where, config, answer_pattern, option_pattern):
         if letter in options:
             raise ParseError(f"{where}: duplicate option '{letter}'")
         options[letter] = option_text.strip()
-    if sorted(options) != list(letters):
+    # A question may use fewer than config.option_letters' full set -- one
+    # question in a course otherwise uniformly 4-option is real (spring-boot-
+    # ai-udemy-practice-tests has exactly one 5-option question in an
+    # otherwise-4-option bank) -- but must still be a gapless prefix starting
+    # at the first letter, never a skipped or out-of-order one.
+    if len(options) < 2 or sorted(options) != list(letters[:len(options)]):
         raise ParseError(
-            f"{where}: expected options {'-'.join(letters[::len(letters) - 1])}, "
-            f"got {sorted(options)}"
+            f"{where}: expected options starting at '{letters[0]}' with no "
+            f"gaps (up to '{letters[-1]}'), got {sorted(options)}"
         )
 
     difficulty = None

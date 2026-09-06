@@ -38,6 +38,18 @@ class DomainPrefixTests(unittest.TestCase):
         self.assertTrue(stem.startswith("What happens"))
         self.assertNotIn("Collections)", stem)
 
+    def test_parenthetical_topic_with_one_level_of_nested_parens_is_dropped(self):
+        # Real content: "Domain 9 (Spring AI advanced (RAG, tools, MCP,
+        # streaming))." -- a naive `\(([^)]*)\)` stops at the FIRST ')',
+        # landing match.end() inside the topic and leaking its tail
+        # ("streaming)). What happens...") into the stem.
+        stem, domain_number = clean_stem(
+            "Domain 9 (Spring AI advanced (RAG, tools, MCP, streaming))."
+            "\n\nWhat happens when this runs?"
+        )
+        self.assertEqual(domain_number, 9)
+        self.assertEqual(stem, "What happens when this runs?")
+
     def test_em_dash_topic_sentence_is_kept_as_the_opening_line(self):
         stem, _ = clean_stem("Domain 5 — Collections deep dive.\n\nWhat happens?")
         self.assertTrue(stem.startswith("Collections deep dive"))
@@ -99,6 +111,49 @@ class ParseMasterTests(unittest.TestCase):
         from ptkit.parse import parse_exam_grouped
         with self.assertRaises(ParseError):
             parse_exam_grouped(text, self.config)
+
+    def test_exam_heading_tolerates_trailing_descriptive_text(self):
+        # "# Exam 1 (49 questions; domains 1-9)" -- spring-boot-ai's real
+        # exam headings carry a parenthetical summary after the number,
+        # which the kit used to reject outright (EXAM_HEADING_RE required
+        # nothing but whitespace after the digit), leaving it with zero
+        # "# Exam N" headings found at all.
+        text = (FIXTURES / "questions-master.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "# Exam 1", "# Exam 1 (49 questions; domains 1-9)", 1
+        )
+        from ptkit.parse import parse_exam_grouped
+        questions = parse_exam_grouped(text, self.config)
+        self.assertEqual([q.qid for q in questions],
+                          ["E1Q01", "E1Q02", "E2Q01"])
+
+    def test_a_question_may_use_fewer_options_than_the_courses_maximum(self):
+        # spring-boot-ai-udemy-practice-tests has exactly one 5-option
+        # question in an otherwise-uniformly-4-option bank -- a question
+        # using fewer than config.option_letters' full set must parse fine,
+        # as long as the options present are a gapless prefix from 'A'.
+        import copy
+        from ptkit.parse import parse_exam_grouped
+        config = copy.copy(self.config)
+        config.option_letters = "ABCDE"
+        text = (FIXTURES / "questions-master.md").read_text(encoding="utf-8")
+        questions = parse_exam_grouped(text, config)
+        self.assertEqual(sorted(questions[0].options), list("ABCD"))
+
+    def test_a_skipped_option_letter_is_still_a_parse_error(self):
+        # Distinguishes "fewer options is fine" from "any subset is fine":
+        # A, B, D with C missing is not a shorter question, it's a mistake.
+        import copy
+        from ptkit.parse import parse_exam_grouped
+        config = copy.copy(self.config)
+        config.option_letters = "ABCDE"
+        text = (FIXTURES / "questions-master.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "C. It does not compile\nD. It throws", "D. It throws", 1
+        )
+        with self.assertRaises(ParseError) as caught:
+            parse_exam_grouped(text, config)
+        self.assertIn("no gaps", str(caught.exception))
 
 
 class DomainGroupedParseTests(unittest.TestCase):
