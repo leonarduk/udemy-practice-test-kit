@@ -185,6 +185,40 @@ class StripLearnerTextTests(unittest.TestCase):
         text = "`byte` wraps at 127. Source: leonarduk/some_repo, question 3."
         self.assertEqual(renderer(text), "byte wraps at 127.")
 
+    def test_multi_space_code_indentation_survives(self):
+        # A stem mixes prose and inline code with no fence markers left by
+        # render time (strip_fences already removed them at parse time), so
+        # a naive "collapse any 2+ space run" -- meant to clean up the
+        # double space an aside/citation removal leaves mid-sentence --
+        # flattened every nested code block's indentation to a single
+        # leading space instead. Confirmed against a real course
+        # (spring-boot-ai-udemy-practice-tests) before this was live: every
+        # multi-line snippet with a nested block lost its indentation.
+        code = ("public static void main(String[] args) {\n"
+                "    int x = 1;\n"
+                "    System.out.println(x);\n"
+                "}")
+        self.assertEqual(render(code), code)
+
+    def test_untouched_paragraph_never_runs_the_collapse_at_all(self):
+        # The collapse/strip pass only runs on a paragraph where a citation
+        # or "Verified" removal actually fired -- a paragraph with neither
+        # trigger must be passed through completely unchanged, mid-sentence
+        # double space included, since there is no way to tell that space
+        # apart from a code snippet's own comment-alignment padding once
+        # fence markers are gone.
+        text = "Sentence one.  Sentence two, with  aligned   spacing kept."
+        self.assertEqual(render(text), text)
+
+    def test_trailing_whitespace_left_by_a_citation_removal_still_trims(self):
+        # Unlike the untouched case above, a paragraph the citation-tail
+        # removal actually fired on still gets its own leftover artifact
+        # (the trailing space before the now-removed citation) trimmed --
+        # gating the cleanup on n_citation/n_verified must not turn it off
+        # for citation removals too, only for a paragraph neither touched.
+        text = "Real content. Source: leonarduk/some_repo, question 3."
+        self.assertEqual(render(text), "Real content.")
+
     def test_lowercase_verified_mid_sentence_is_kept(self):
         # Only a sentence-*initial*, capitalised "Verified"/"Matches this
         # module's own" is a stripped aside -- lowercase "verified" appearing

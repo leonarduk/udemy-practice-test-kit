@@ -160,10 +160,26 @@ class TextRenderer:
 
         stripped = []
         for paragraph in paragraphs:
-            paragraph = self.citation_tail_re.sub("", paragraph)
+            paragraph, n_citation = self.citation_tail_re.subn("", paragraph)
+            n_verified = 0
             if self.strip_verified_asides:
-                paragraph = VERIFIED_TAIL_RE.sub("", paragraph)
-            stripped.append(re.sub(r"[ \t]{2,}", " ", paragraph).strip())
+                paragraph, n_verified = VERIFIED_TAIL_RE.subn("", paragraph)
+            if n_citation or n_verified:
+                # Both cleanups below undo an artifact that ONLY this
+                # removal itself can leave -- a double space where the
+                # removed clause used to sit ("thread.  Thread.ofPlatform()")
+                # or stray leading/trailing whitespace at the cut. Run
+                # unconditionally instead of gated on n_citation/n_verified,
+                # they instead flattened a code snippet's own multi-space
+                # comment alignment ("x;   // note") to one space, and, on a
+                # stem whose first line is itself an indented code line
+                # (nothing was removed from in front of it), stripped that
+                # line's own indentation outright. A stem mixes prose with
+                # inline code with no fence markers left by render time to
+                # tell them apart, so both only run on a paragraph actually
+                # known to carry the artifact they exist to remove.
+                paragraph = re.sub(r"(?<=\S)[ \t]{2,}", " ", paragraph).strip()
+            stripped.append(paragraph)
 
         kept = [p for p in stripped if p]
         if not kept:
