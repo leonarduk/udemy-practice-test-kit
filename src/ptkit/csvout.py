@@ -55,7 +55,7 @@ def render(questions, exam, config, domain_names=None):
         question is quoted
       * UTF-8 with no BOM
     """
-    render_text = TextRenderer(config.citation_owners)
+    render_text = TextRenderer(config.citation_owners, config.strip_verified_asides)
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(
         buffer, fieldnames=COLUMNS, lineterminator="\r\n", quoting=csv.QUOTE_MINIMAL

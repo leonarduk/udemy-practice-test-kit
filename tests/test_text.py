@@ -161,6 +161,30 @@ class StripLearnerTextTests(unittest.TestCase):
             "JEP 511 imports every exported package.",
         )
 
+    def test_strip_verified_asides_false_keeps_the_verified_sentence(self):
+        # A course whose "Verified by running it: ..." sentence IS the
+        # substantive evidence, not a discardable tail -- see
+        # spring-boot-ai-udemy-practice-tests, where the general claim alone
+        # (before "Verified") doesn't state the concrete observed behaviour
+        # that sentence carries. Off by default's own tests above cover the
+        # opposite course; this is the opt-out.
+        renderer = TextRenderer(strip_verified_asides=False)
+        text = ("Relaxed binding applies uniformly. Verified by running it: "
+                "`app.greeting.repeat-count=3` produced 3 repetitions.")
+        self.assertEqual(
+            renderer(text),
+            "Relaxed binding applies uniformly. Verified by running it: "
+            "app.greeting.repeat-count=3 produced 3 repetitions.",
+        )
+
+    def test_strip_verified_asides_false_still_strips_markdown_and_citations(self):
+        # The off switch only disables VERIFIED_TAIL_RE -- backtick/emphasis
+        # stripping and citation-tail stripping are unrelated passes and stay
+        # on.
+        renderer = TextRenderer(strip_verified_asides=False)
+        text = "`byte` wraps at 127. Source: leonarduk/some_repo, question 3."
+        self.assertEqual(renderer(text), "byte wraps at 127.")
+
     def test_lowercase_verified_mid_sentence_is_kept(self):
         # Only a sentence-*initial*, capitalised "Verified"/"Matches this
         # module's own" is a stripped aside -- lowercase "verified" appearing

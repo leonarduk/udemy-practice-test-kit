@@ -107,6 +107,7 @@ citation_owners = ["leonarduk"]             # strips "Source: <owner>/<repo> …
 key_distribution_band = [0.20, 0.30]
 naive_strategy_band = [0.15, 0.35]
 length_ratio_band = [0.90, 1.10]
+# strip_verified_asides = true  # see "Verified-aside stripping" below
 
 # Cross-exam pairs reviewed and deliberately kept. A list of *reviewed* pairs,
 # not a mute button: an unlisted pair above the threshold still warns, and a
@@ -251,6 +252,20 @@ only safe for a course that has never been uploaded, or that is being
 deliberately re-keyed on purpose. Once enabled, `shuffle_seed` is part of the
 bank's identity — changing it reshuffles everything, so treat it like a
 schema field, not a tuning knob.
+
+## Verified-aside stripping
+
+`TextRenderer` drops a "Verified ..." (or "Matches this module's own ...
+README") sentence as a discardable aside — built for a course whose
+explanations already state the answer in full and then append a short,
+redundant verification note ("... wraps to -128. Verified: prints -128.").
+
+That assumption isn't universal. A course whose explanations use "Verified
+by running it: `<the actual observed behaviour>`" as the substantive
+evidence — the one place a specific concrete detail is stated, not a restated
+aside — needs `[checks] strip_verified_asides = false`, or the sentence
+carrying the real content is deleted, not just a redundant tail. Default
+`true` keeps every existing adopter's output unchanged.
 
 ## Tests
 

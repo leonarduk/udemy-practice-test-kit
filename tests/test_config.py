@@ -184,6 +184,18 @@ class ValidationTests(unittest.TestCase):
             config = load(write(tmp, MINIMAL))
         self.assertEqual(config.sections, {})
 
+    def test_strip_verified_asides_defaults_to_true(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(tmp, MINIMAL))
+        self.assertTrue(config.strip_verified_asides)
+
+    def test_strip_verified_asides_can_be_turned_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(
+                tmp, MINIMAL + "\n[checks]\nstrip_verified_asides = false\n"
+            ))
+        self.assertFalse(config.strip_verified_asides)
+
     def test_shuffle_options_without_a_seed_is_rejected(self):
         self.assert_config_error(
             MINIMAL.replace("[layout]", "[layout]\nshuffle_options = true"),

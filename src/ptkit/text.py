@@ -128,8 +128,18 @@ class TextRenderer:
     a hardcoded regex.
     """
 
-    def __init__(self, citation_owners=DEFAULT_CITATION_OWNERS):
+    def __init__(self, citation_owners=DEFAULT_CITATION_OWNERS,
+                 strip_verified_asides=True):
         self.citation_tail_re = build_citation_tail_re(citation_owners)
+        # VERIFIED_TAIL_RE assumes "Verified ..." is a discardable aside that
+        # trails a fuller explanation already stated earlier in the same
+        # paragraph -- true for the course(s) this was built against, but not
+        # a universal authoring convention: a course whose explanations use
+        # "Verified by running it: <the actual observed behaviour>" as the
+        # substantive evidence, not a redundant tail, needs this off, or the
+        # one sentence carrying the real content gets deleted. Per-course,
+        # not a global constant, for exactly that reason.
+        self.strip_verified_asides = strip_verified_asides
 
     def __call__(self, text):
         """Render `text` for a learner-facing CSV column.
@@ -151,7 +161,8 @@ class TextRenderer:
         stripped = []
         for paragraph in paragraphs:
             paragraph = self.citation_tail_re.sub("", paragraph)
-            paragraph = VERIFIED_TAIL_RE.sub("", paragraph)
+            if self.strip_verified_asides:
+                paragraph = VERIFIED_TAIL_RE.sub("", paragraph)
             stripped.append(re.sub(r"[ \t]{2,}", " ", paragraph).strip())
 
         kept = [p for p in stripped if p]

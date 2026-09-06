@@ -191,6 +191,12 @@ class CourseConfig:
         self.duplicate_threshold = float(checks.get("duplicate_threshold", 0.62))
         self.private_repos = tuple(checks.get("private_repos", []))
         self.citation_owners = tuple(checks.get("citation_owners", ["leonarduk"]))
+        # Off switch for TextRenderer's "Verified ..." aside-stripping (see
+        # its own docstring) -- default True keeps every existing adopter's
+        # behavior unchanged; a course whose explanations use "Verified by
+        # running it: ..." as the substantive evidence, not a discardable
+        # tail, sets this false so that sentence survives into the CSV.
+        self.strip_verified_asides = bool(checks.get("strip_verified_asides", True))
         self.key_distribution_band = tuple(
             checks.get("key_distribution_band", [0.20, 0.30])
         )
