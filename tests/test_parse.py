@@ -169,5 +169,59 @@ class DomainGroupedParseTests(unittest.TestCase):
             parse_domain_grouped(text, self.config)
 
 
+class SectionGroupedParseTests(unittest.TestCase):
+    """"# <Section Name> / ## QNN": a bank authored as a flat list of named
+    batches (no numbering convention at all), where course.toml's [sections]
+    maps each one onto the exam it belongs to. Several sections can feed the
+    same exam, and question numbers restart at Q01 in every section -- the
+    interesting behaviour here is the same cross-section renumbering
+    domain-grouped does per domain, plus tolerating a document title that
+    isn't a real section.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.config = ptkit.load(FIXTURES / "course-section-grouped.toml")
+        cls.questions = ptkit.parse_master(cls.config)
+
+    def test_two_sections_feeding_one_exam_are_renumbered_to_unique_qids(self):
+        # "Fixture Mock Exam 1" (Q01, Q02) and "Fixture Supplementary
+        # Questions" (Q01) both map to exam 1; "Fixture Mock Exam 2" (Q01)
+        # maps to exam 2.
+        self.assertEqual([q.qid for q in self.questions],
+                          ["E1Q01", "E1Q02", "E1Q03", "E2Q01"])
+
+    def test_front_matter_title_is_not_treated_as_a_section(self):
+        # The fixture's leading "# Fixture Bank — Master Question Bank" H1
+        # carries no "## QNN" content and isn't in [sections] -- parsing
+        # must not raise on it.
+        self.assertEqual(len(self.questions), 4)
+
+    def test_domain_and_options_are_parsed_normally(self):
+        first = self.questions[0]
+        self.assertEqual(first.domain, "Fifth Domain")
+        self.assertEqual(sorted(first.options), list("ABCD"))
+        self.assertEqual(first.answer, "A")
+
+    def test_undeclared_section_with_real_questions_is_a_parse_error(self):
+        text = (FIXTURES / "questions-master-section-grouped.md").read_text(
+            encoding="utf-8"
+        )
+        text = text.replace("# Fixture Mock Exam 2", "# Fixture Mock Exam 3")
+        from ptkit.parse import parse_section_grouped
+        with self.assertRaises(ParseError) as caught:
+            parse_section_grouped(text, self.config)
+        self.assertIn("not in course.toml's [sections] table", str(caught.exception))
+
+    def test_missing_answer_line_is_a_parse_error(self):
+        text = (FIXTURES / "questions-master-section-grouped.md").read_text(
+            encoding="utf-8"
+        )
+        text = text.replace("**Correct answer:** A", "", 1)
+        from ptkit.parse import parse_section_grouped
+        with self.assertRaises(ParseError):
+            parse_section_grouped(text, self.config)
+
+
 if __name__ == "__main__":
     unittest.main()

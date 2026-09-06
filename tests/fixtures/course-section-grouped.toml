@@ -1,0 +1,30 @@
+[course]
+name = "Fixture Course (section-grouped)"
+slug = "fixture-section-grouped"
+
+[layout]
+kind = "section-grouped"
+master = "questions-master-section-grouped.md"
+output_dir = "."
+template = "PracticeTestBulkQuestionUploadTemplate_V2.2.csv"
+csv_name = "practice-test-{exam}.csv"
+option_letters = "ABCD"
+
+[exams]
+numbers = [1, 2]
+counts = { 1 = 3, 2 = 1 }
+free = []
+
+[domains]
+1 = "First Domain"
+5 = "Fifth Domain"
+
+[sections]
+"Fixture Mock Exam 1" = 1
+"Fixture Supplementary Questions" = 1
+"Fixture Mock Exam 2" = 2
+
+[checks]
+duplicate_threshold = 0.62
+private_repos = []
+citation_owners = ["leonarduk"]

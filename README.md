@@ -175,6 +175,20 @@ it, add the name to `config.LAYOUTS`.
   every domain section, matching each source module's own numbering; the
   parser renumbers them sequentially within the exam so every `Question.qid`
   stays unique.
+- `section-grouped`: `# <Section Name>` / `## QNN`, no numbering convention
+  at all. For a bank authored as a flat list of named batches, where several
+  batches feed the same output exam (e.g. three "Mock Exam" sections plus a
+  later "Supplementary Questions" batch, all in `practice-test-1.csv`) — a
+  shape `exam-grouped`'s "# Exam N" can't express, since two sections feeding
+  the same exam don't share a naming pattern. `[sections]` in `course.toml`
+  maps each section's exact heading text onto the exam number it belongs to.
+  Question numbers restart at `## Q01` in every section; the parser
+  renumbers them sequentially within the *target* exam, the same way
+  `domain-grouped` does per domain. A `# ...` heading matches any text
+  (there's no "Exam N" pattern to require), so a document's own front-matter
+  title is tolerated: a heading with no `## QNN` questions under it is
+  skipped as front matter unless it's declared in `[sections]`, in which
+  case an empty declared section is treated as the real problem it is.
 
 ## Tests
 

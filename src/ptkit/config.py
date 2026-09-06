@@ -35,8 +35,11 @@ COLUMNS = [
 # RAW_BODY_LOADERS. "exam-grouped" is every Oracle/Spring bank; "domain-grouped"
 # is for a bank transcribed module-by-module from a domain-organized source
 # (e.g. risk-eng-for-swe), where a heading groups a run of questions instead
-# of "Domain N" being repeated inline in each one.
-LAYOUTS = ("exam-grouped", "domain-grouped")
+# of "Domain N" being repeated inline in each one; "section-grouped" is for a
+# bank authored as a flat list of named batches (no numbering convention at
+# all), where [sections] maps each one onto the exam it belongs to and
+# several batches may feed the same exam.
+LAYOUTS = ("exam-grouped", "domain-grouped", "section-grouped")
 
 
 class ConfigError(Exception):
@@ -135,6 +138,25 @@ class CourseConfig:
         self.domain_names = {int(k): str(v) for k, v in domains.items()}
         if not self.domain_names:
             raise ConfigError("[domains] must map at least one domain number to a name")
+
+        # Only meaningful for "section-grouped" -- see parse.py's
+        # parse_section_grouped. Maps a master-file section heading's exact
+        # text onto the exam number it belongs to; several sections may map
+        # to the same exam.
+        sections = self._table("sections", required=False)
+        self.sections = {str(k): int(v) for k, v in sections.items()}
+        if self.layout == "section-grouped" and not self.sections:
+            raise ConfigError(
+                "[layout] kind = \"section-grouped\" needs a non-empty "
+                "[sections] table mapping section names to exam numbers"
+            )
+        unknown_section_exams = sorted(set(self.sections.values()) - set(self.exams))
+        if unknown_section_exams:
+            raise ConfigError(
+                f"[sections] maps to exam(s) "
+                f"{', '.join(map(str, unknown_section_exams))} that are not "
+                f"in [exams] numbers"
+            )
 
         checks = self._table("checks", required=False)
         self.duplicate_threshold = float(checks.get("duplicate_threshold", 0.62))

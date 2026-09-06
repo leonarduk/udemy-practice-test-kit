@@ -148,6 +148,22 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(config.is_complete(1))
         self.assertTrue(config.bank_is_complete())
 
+    def test_section_grouped_needs_a_sections_table(self):
+        self.assert_config_error(
+            MINIMAL.replace("[layout]", '[layout]\nkind = "section-grouped"'),
+            "needs a non-empty [sections] table",
+        )
+
+    def test_sections_table_must_reference_known_exams(self):
+        body = MINIMAL.replace("[layout]", '[layout]\nkind = "section-grouped"')
+        body += '\n[sections]\n"Batch 1" = 1\n"Batch 2" = 9\n'
+        self.assert_config_error(body, "exam(s) 9")
+
+    def test_sections_table_is_optional_for_other_layouts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(tmp, MINIMAL))
+        self.assertEqual(config.sections, {})
+
     def test_bad_toml_names_the_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ConfigError) as caught:
