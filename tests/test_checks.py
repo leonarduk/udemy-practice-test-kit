@@ -1,5 +1,6 @@
 """Check tests: the scorers, the keep-list, and the HTML-safety detector."""
 
+import csv
 import io
 import shutil
 import tempfile
@@ -10,7 +11,9 @@ import ptkit
 from ptkit import checks as checks_pkg
 from ptkit.checks.hygiene import build_private_repo_re, check_option_html
 from ptkit.checks.quality import check_duplicates, naive_length_score
-from ptkit.checks.structure import check_explanations_present, check_structure
+from ptkit.checks.structure import (
+    check_explanations_present, check_structure, check_tier_boundary,
+)
 from ptkit.model import Question
 from ptkit.report import Report
 
@@ -131,6 +134,50 @@ class ExplanationPresenceTests(CourseFixtureTestCase):
         check_explanations_present(self.ctx)
         self.assertEqual(len(self.report.failures), 1)
         self.assertIn("blank Overall Explanation", self.report.failures[0])
+
+
+class TierBoundaryTests(CourseFixtureTestCase):
+    """The fixture course's [exams] free = [2] makes exam 2 the free tier.
+
+    A course with no free exams at all (free = []) is the common case, and
+    should just pass trivially -- covered implicitly by every other test
+    class in this file using check_structure et al. against a course with no
+    free tier configured at all.
+    """
+
+    def _set_exam1_question_text(self, new_text):
+        """Overwrite exam 1's only-question "Question" cell, properly through
+        the csv module -- it's a multi-line, comma-free field, but proving
+        that by construction beats assuming it in a raw string/line split."""
+        path = self.config.csv_path(1)
+        with path.open(encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        rows[0]["Question"] = new_text
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+        self.ctx._csv_rows = None
+
+    def _free_question_text(self):
+        with self.config.csv_path(2).open(encoding="utf-8", newline="") as handle:
+            return next(csv.DictReader(handle))["Question"]
+
+    def test_no_leak_between_tiers_passes(self):
+        check_tier_boundary(self.ctx)
+        self.assertEqual(self.report.failures, [])
+
+    def test_shared_question_text_across_tiers_is_a_failure(self):
+        self._set_exam1_question_text(self._free_question_text())
+        check_tier_boundary(self.ctx)
+        self.assertEqual(len(self.report.failures), 1)
+        self.assertIn("tier boundary breached", self.report.failures[0])
+
+    def test_whitespace_reformatting_does_not_hide_a_leak(self):
+        reformatted = self._free_question_text().replace(" ", "  ")
+        self._set_exam1_question_text(reformatted)
+        check_tier_boundary(self.ctx)
+        self.assertEqual(len(self.report.failures), 1)
 
 
 class PrivateRepoPatternTests(unittest.TestCase):

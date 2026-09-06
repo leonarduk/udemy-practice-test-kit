@@ -165,6 +165,42 @@ def check_identical_options(ctx):
         )
 
 
+def check_tier_boundary(ctx):
+    """No question may leak across the free/paid boundary a course declares.
+
+    Most courses have no free exams at all ([exams] free is empty), in which
+    case this is a no-op ok. For one that does (a free sample or diagnostic
+    held back from the paid product), the boundary is exam-level -- see
+    CourseConfig.tier_of -- but that declaration only says what SHOULD be
+    true. This catches what actually IS true in the generated CSVs: the same
+    question text (whitespace-normalized, so a reformatted copy still counts)
+    should never appear in both a free-tier and a paid-tier CSV, since that
+    would mean paid content shipped for free, or vice versa, even when the
+    exam-number bookkeeping itself looks fine (e.g. a CSV's rows copied under
+    the wrong filename).
+    """
+    ctx.report.heading("Tier boundary: free-exam content stays out of paid CSVs")
+    by_tier = {"free": collections.defaultdict(list), "paid": collections.defaultdict(list)}
+    for exam, rows in ctx.csv_rows.items():
+        if rows and list(rows[0].keys()) != COLUMNS:
+            continue  # check_structure already reports the header mismatch
+        bucket = by_tier[ctx.config.tier_of(exam)]
+        for i, row in enumerate(rows, 1):
+            normalized = " ".join(row["Question"].split())
+            bucket[normalized].append(f"E{exam}Q{i:02d}")
+
+    leaked = by_tier["free"].keys() & by_tier["paid"].keys()
+    if leaked:
+        for text in sorted(leaked):
+            ctx.report.fail(
+                f"question text appears in both a free-tier CSV "
+                f"({', '.join(by_tier['free'][text])}) and a paid-tier CSV "
+                f"({', '.join(by_tier['paid'][text])}) -- tier boundary breached"
+            )
+    else:
+        ctx.report.ok("no question text is shared between a free-tier and a paid-tier CSV")
+
+
 def check_csvs_current(ctx):
     ctx.report.heading("CSVs in sync with questions-master.md")
     stale = []
