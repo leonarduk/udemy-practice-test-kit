@@ -48,6 +48,20 @@ class LoadTests(unittest.TestCase):
             self.assertEqual(config.master.name, "questions-master.md")
             self.assertEqual(config.csv_path(1).name, "practice-test-1.csv")
 
+    def test_exam_slug_overrides_the_filename_placeholder(self):
+        # A bank whose established CSV names are strings ("pcep-30"), not
+        # bare exam numbers -- [exams] slugs substitutes into csv_name's
+        # {exam} placeholder in place of the number; an exam with no slug
+        # entry keeps using its own number, same as the default test above.
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(
+                tmp, MINIMAL.replace(
+                    "counts = { 1 = 2 }",
+                    'counts = { 1 = 2 }\nslugs = { 1 = "pcep-30" }',
+                )
+            ))
+        self.assertEqual(config.csv_path(1).name, "practice-test-pcep-30.csv")
+
     def test_find_config_walks_up_like_git(self):
         with tempfile.TemporaryDirectory() as tmp:
             write(tmp, MINIMAL)
@@ -152,6 +166,12 @@ class ValidationTests(unittest.TestCase):
         self.assert_config_error(
             MINIMAL.replace("[layout]", '[layout]\nkind = "section-grouped"'),
             "needs a non-empty [sections] table",
+        )
+
+    def test_exam_slugs_must_reference_known_exams(self):
+        self.assert_config_error(
+            MINIMAL.replace("counts = { 1 = 2 }", 'counts = { 1 = 2 }\nslugs = { 9 = "x" }'),
+            "exam(s) 9",
         )
 
     def test_sections_table_must_reference_known_exams(self):

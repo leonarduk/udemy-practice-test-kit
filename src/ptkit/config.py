@@ -99,6 +99,21 @@ class CourseConfig:
         if not numbers:
             raise ConfigError("[exams] numbers must list at least one exam")
         self.exams = tuple(int(n) for n in numbers)
+        # Optional human-readable filename slug per exam (e.g. exam 1 ->
+        # "pcep-30"), for a bank whose established CSV names are strings, not
+        # bare numbers -- csv_path() below substitutes it into csv_name's
+        # {exam} placeholder in place of the number. An exam with no entry
+        # here just uses its own number, which is the entire behavior for
+        # every course that doesn't set this table at all.
+        raw_slugs = exams.get("slugs", {})
+        self.exam_slugs = {int(k): str(v) for k, v in raw_slugs.items()}
+        unknown_slug_exams = sorted(set(self.exam_slugs) - set(self.exams))
+        if unknown_slug_exams:
+            raise ConfigError(
+                f"[exams] slugs names exam(s) "
+                f"{', '.join(map(str, unknown_slug_exams))} that are not "
+                f"in numbers"
+            )
         raw_counts = exams.get("counts", {})
         self.exam_question_counts = {int(k): int(v) for k, v in raw_counts.items()}
         missing = [e for e in self.exams if e not in self.exam_question_counts]
@@ -218,7 +233,9 @@ class CourseConfig:
     # -- derived ---------------------------------------------------------
 
     def csv_path(self, exam):
-        return self.output_dir / self.csv_name.format(exam=exam)
+        return self.output_dir / self.csv_name.format(
+            exam=self.exam_slugs.get(exam, exam)
+        )
 
     def tier_of(self, exam):
         """"free" for a free-tier exam, "paid" otherwise."""

@@ -88,6 +88,11 @@ numbers = [1, 2, 3, 4, 5, 6]
 counts = { 1 = 50, 2 = 50, 3 = 50, 4 = 50, 5 = 50, 6 = 50 }
 free = []                      # exam numbers that are the free sample
 complete = [1, 2]              # exams declared FINISHED -- see below
+# slugs = { 1 = "pcep-30" }    # optional: {exam} in csv_name uses this
+                                # string instead of the bare number, for a
+                                # bank whose established CSV names aren't
+                                # numbered -- an exam with no entry here
+                                # just uses its own number, as above
 
 [domains]
 1 = "Handling Date, Time, Text, Numeric and Boolean Values"
