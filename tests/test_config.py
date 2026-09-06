@@ -184,6 +184,29 @@ class ValidationTests(unittest.TestCase):
             config = load(write(tmp, MINIMAL))
         self.assertEqual(config.sections, {})
 
+    def test_shuffle_options_without_a_seed_is_rejected(self):
+        self.assert_config_error(
+            MINIMAL.replace("[layout]", "[layout]\nshuffle_options = true"),
+            "needs a non-empty shuffle_seed",
+        )
+
+    def test_shuffle_options_with_a_seed_loads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(
+                tmp, MINIMAL.replace(
+                    "[layout]",
+                    '[layout]\nshuffle_options = true\nshuffle_seed = "test-seed"',
+                )
+            ))
+        self.assertTrue(config.shuffle_options)
+        self.assertEqual(config.shuffle_seed, "test-seed")
+
+    def test_shuffle_options_defaults_to_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load(write(tmp, MINIMAL))
+        self.assertFalse(config.shuffle_options)
+        self.assertIsNone(config.shuffle_seed)
+
     def test_bad_toml_names_the_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ConfigError) as caught:

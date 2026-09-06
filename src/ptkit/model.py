@@ -14,7 +14,8 @@ class ParseError(Exception):
 
 class Question:
     def __init__(self, exam, number, stem, options, answer, explanation,
-                 domain, domain_number=None, difficulty=None):
+                 domain, domain_number=None, difficulty=None,
+                 option_explanations=None):
         self.exam = exam
         self.number = number
         self.stem = stem
@@ -28,6 +29,12 @@ class Question:
         # Only some course layouts carry a "**Difficulty:**" line; None means
         # "this course does not track it", not "unknown".
         self.difficulty = difficulty
+        # Optional per-option explanation ("why is A right/wrong"), keyed
+        # like self.options. Empty for a course that doesn't author these --
+        # not every option needs to be covered by a partially-filled dict,
+        # that's a course-authoring error the parser rejects outright; this
+        # is either fully populated (one entry per option) or empty.
+        self.option_explanations = option_explanations or {}
 
     @property
     def qid(self):

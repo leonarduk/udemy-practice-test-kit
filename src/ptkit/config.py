@@ -17,9 +17,11 @@ CONFIG_NAME = "course.toml"
 
 # The 17 columns of Udemy's PracticeTestBulkQuestionUploadTemplate_V2.2.csv,
 # in order. The template's own instructions require unused columns to stay
-# present, so Explanation 1-6 and Answer Option 5-6 are emitted empty rather
-# than dropped. Not configurable: it is the platform's format, not the
-# course's, and check_structure asserts the on-disk template still matches.
+# present, so Answer Option 5-6 (a course with fewer than 6 options) and any
+# Explanation N a course doesn't author (see Question.option_explanations)
+# are emitted empty rather than dropped. Not configurable: it is the
+# platform's format, not the course's, and check_structure asserts the
+# on-disk template still matches.
 COLUMNS = [
     "Question", "Question Type",
     "Answer Option 1", "Explanation 1",
@@ -93,6 +95,18 @@ class CourseConfig:
             raise ConfigError("[layout] option_letters needs at least 2 letters")
         self.require_domain_prefix = layout.get("require_domain_prefix", True)
         self.require_difficulty = layout.get("require_difficulty", False)
+        # Deterministic answer-option shuffle (see shuffle.py) -- off by
+        # default, since it changes which letter is "correct" for every
+        # question and so is only safe to turn on for a bank that has never
+        # been uploaded, or that is being deliberately re-keyed. shuffle_seed
+        # is part of the bank's identity once enabled: changing it reshuffles
+        # every question, so treat it like a schema field, not a tuning knob.
+        self.shuffle_options = layout.get("shuffle_options", False)
+        self.shuffle_seed = layout.get("shuffle_seed")
+        if self.shuffle_options and not self.shuffle_seed:
+            raise ConfigError(
+                "[layout] shuffle_options = true needs a non-empty shuffle_seed"
+            )
 
         exams = self._table("exams")
         numbers = exams.get("numbers")

@@ -55,7 +55,10 @@ def cmd_validate(args):
 
 def cmd_generate(args):
     config = config_module.load(args.config)
-    questions = parse_master(config, path=Path(args.master) if args.master else None)
+    questions = parse_master(
+        config, path=Path(args.master) if args.master else None,
+        shuffle=not args.no_shuffle,
+    )
     print(f"parsed {len(questions)} questions from "
           f"{args.master or config.master.relative_to(config.root)}")
 
@@ -146,6 +149,9 @@ def main(argv=None):
     generate.add_argument("--check", action="store_true",
                           help="write nothing; exit non-zero if the CSVs are stale")
     generate.add_argument("--master", help="override the source Markdown file")
+    generate.add_argument("--no-shuffle", action="store_true",
+                          help="skip [layout] shuffle_options; emit the "
+                               "authored option order for hand-diffing")
     generate.set_defaults(func=cmd_generate)
 
     new_course = sub.add_parser("new-course", help="scaffold a new course repo")

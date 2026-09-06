@@ -77,6 +77,7 @@ import collections
 import re
 
 from .model import ParseError, Question
+from .shuffle import shuffle_questions
 from .text import strip_fences
 
 # "Domain 3 (Overload resolution)." or "Domain 3 - Overload resolution
@@ -155,6 +156,17 @@ EXPLANATION_RE = re.compile(
     r"^\*\*Explanation:\*\*\s*(.*?)\s*(?:^---\s*$|\Z)", re.S | re.M
 )
 
+# An optional per-option-explanation block, sitting between the correct-answer
+# line and the overall explanation: "why is A right, why is B wrong, ...".
+# Captures everything after the header up to the "**Explanation:**" line (or
+# end of body, if somehow absent -- EXPLANATION_RE's own check catches that
+# case with a clearer message). Its lettered lines are parsed with the same
+# option_pattern the main options use, sentinel-appended the same way.
+WHY_BLOCK_RE = re.compile(
+    r"^\*\*Why each option:\*\*[ \t]*\n(.*?)(?=^\*\*Explanation:\*\*|\Z)",
+    re.M | re.S,
+)
+
 
 def answer_re(letters):
     return re.compile(rf"^\*\*Correct answer:\*\*\s*([{letters}])\s*$", re.M)
@@ -194,14 +206,16 @@ def clean_stem(raw, require_domain_prefix=True):
 
 
 def _parse_question_fields(body, where, config, answer_pattern, option_pattern):
-    """Extract options, answer, explanation and difficulty from one question body.
+    """Extract options, answer, explanation, difficulty and per-option
+    explanations from one question body.
 
     This grammar is the same for every layout; only where the stem's domain
     comes from differs (an inline prefix vs. an enclosing heading), so each
     layout's own parser cleans `raw_stem` -- everything before the first
     option line -- itself.
 
-    Returns (raw_stem, options, answer, explanation, difficulty).
+    Returns (raw_stem, options, answer, explanation, difficulty,
+    option_explanations).
     """
     letters = config.option_letters
 
@@ -244,10 +258,28 @@ def _parse_question_fields(body, where, config, answer_pattern, option_pattern):
     elif config.require_difficulty:
         raise ParseError(f"{where}: no '**Difficulty:**' line")
 
+    option_explanations = {}
+    why_match = WHY_BLOCK_RE.search(body)
+    if why_match:
+        for letter, why_text in option_pattern.findall(
+            why_match.group(1) + "\n**Correct answer:**"
+        ):
+            if letter in option_explanations:
+                raise ParseError(
+                    f"{where}: duplicate '**Why each option:**' entry '{letter}'"
+                )
+            option_explanations[letter] = why_text.strip()
+        if sorted(option_explanations) != sorted(options):
+            raise ParseError(
+                f"{where}: '**Why each option:**' covers "
+                f"{sorted(option_explanations) or 'nothing'}, but the options "
+                f"are {sorted(options)} -- every option needs one"
+            )
+
     raw_stem = options_region[:first_option.start()]
     return (
         raw_stem, options, answer_match.group(1),
-        explanation_match.group(1).strip(), difficulty,
+        explanation_match.group(1).strip(), difficulty, option_explanations,
     )
 
 
@@ -269,7 +301,7 @@ def parse_exam_grouped(text, config):
             body = blocks[j + 1]
             where = f"E{exam}Q{number:02d}"
 
-            raw_stem, options, answer, explanation, difficulty = _parse_question_fields(
+            raw_stem, options, answer, explanation, difficulty, option_explanations = _parse_question_fields(
                 body, where, config, answer_pattern, option_pattern
             )
             stem, domain_number = clean_stem(
@@ -289,6 +321,7 @@ def parse_exam_grouped(text, config):
                 domain_number=domain_number,
                 domain=domain,
                 difficulty=difficulty,
+                option_explanations=option_explanations,
             ))
     return questions
 
@@ -343,7 +376,7 @@ def parse_domain_grouped(text, config):
                 body = blocks[j + 1]
                 where = f"E{exam} Domain {domain_number} {label}"
 
-                raw_stem, options, answer, explanation, difficulty = _parse_question_fields(
+                raw_stem, options, answer, explanation, difficulty, option_explanations = _parse_question_fields(
                     body, where, config, answer_pattern, option_pattern
                 )
                 running_number += 1
@@ -358,6 +391,7 @@ def parse_domain_grouped(text, config):
                     domain_number=domain_number,
                     domain=domain,
                     difficulty=difficulty,
+                    option_explanations=option_explanations,
                 ))
     return questions
 
@@ -415,7 +449,7 @@ def parse_section_grouped(text, config):
             body = blocks[j + 1]
             where = f"{section_name} {label}"
 
-            raw_stem, options, answer, explanation, difficulty = _parse_question_fields(
+            raw_stem, options, answer, explanation, difficulty, option_explanations = _parse_question_fields(
                 body, where, config, answer_pattern, option_pattern
             )
             stem, domain_number = clean_stem(
@@ -436,6 +470,7 @@ def parse_section_grouped(text, config):
                 domain_number=domain_number,
                 domain=domain,
                 difficulty=difficulty,
+                option_explanations=option_explanations,
             ))
     return questions
 
@@ -447,12 +482,22 @@ PARSERS = {
 }
 
 
-def parse_master(config, path=None):
-    """Parse the course's master Markdown file into a list of Question."""
+def parse_master(config, path=None, shuffle=True):
+    """Parse the course's master Markdown file into a list of Question.
+
+    `shuffle` gates config.shuffle_options -- pass False (as `ptkit
+    generate --no-shuffle` does) to see the authored option order for
+    hand-diffing against questions-master.md. Applied here, not at CSV-render
+    time, so every check and every generated CSV agree on the same
+    distribution -- see shuffle.py's module docstring.
+    """
     source = path or config.master
     text = source.read_text(encoding="utf-8") if hasattr(source, "read_text") \
         else open(source, encoding="utf-8").read()
-    return PARSERS[config.layout](text, config)
+    questions = PARSERS[config.layout](text, config)
+    if config.shuffle_options and shuffle:
+        questions = shuffle_questions(questions, config)
+    return questions
 
 
 def _raw_bodies_exam_grouped(text, config):

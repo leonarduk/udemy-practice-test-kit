@@ -58,6 +58,19 @@ class ToRowTests(unittest.TestCase):
         row = to_row(self.question, self.render_text, domain_names={3: "Traduzido"})
         self.assertEqual(row["Domain"], "Applying Object-Oriented Principles")
 
+    def test_option_explanations_populate_the_matching_explanation_column(self):
+        self.question.option_explanations = {
+            "A": "Right: `true` — verified separately.",
+            "B": "Wrong: never `false`.",
+            "C": "Wrong: it compiles.",
+            "D": "Wrong: not plain text.",
+        }
+        row = to_row(self.question, self.render_text)
+        self.assertEqual(row["Explanation 1"], "Right: true — verified separately.")
+        self.assertEqual(row["Explanation 2"], "Wrong: never false.")
+        self.assertEqual(row["Explanation 3"], "Wrong: it compiles.")
+        self.assertEqual(row["Explanation 4"], "Wrong: not plain text.")
+
 
 class RenderTests(unittest.TestCase):
     @classmethod

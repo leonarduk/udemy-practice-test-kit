@@ -82,6 +82,8 @@ csv_name = "practice-test-{exam}.csv"
 option_letters = "ABCD"
 require_domain_prefix = true   # every stem opens with "Domain N — Topic."
 require_difficulty = false
+# shuffle_options = true                        # see "Answer-option shuffle"
+# shuffle_seed = "my-course/2026-09"             # required if shuffle_options is set
 
 [exams]
 numbers = [1, 2, 3, 4, 5, 6]
@@ -194,6 +196,61 @@ it, add the name to `config.LAYOUTS`.
   title is tolerated: a heading with no `## QNN` questions under it is
   skipped as front matter unless it's declared in `[sections]`, in which
   case an empty declared section is treated as the real problem it is.
+
+## Per-option explanations
+
+An optional `**Why each option:**` block, sitting between the correct-answer
+line and `**Explanation:**`, saying why *each* option is right or wrong —
+not just the one overall explanation:
+
+```
+**Correct answer:** B
+
+**Why each option:**
+A. Wrong: this compiles, so it does not throw at build time.
+B. Right: `byte` wraps around at 127 per JLS 15.14.2.
+C. Wrong: nothing here fails to compile.
+D. Wrong: this is the un-wrapped value, not what actually prints.
+
+**Explanation:** `byte` wraps around at 127 per JLS 15.14.2.
+```
+
+Maps onto the CSV's `Explanation 1`-`4` columns, which Udemy shows beside
+each option when a learner reviews their attempt — this is where a practice
+test does most of its teaching, telling someone why the distractor they
+picked was wrong rather than only what the right answer was.
+
+All-or-nothing: a course that doesn't author these just omits the block
+entirely (`Question.option_explanations` is then `{}` and every `Explanation
+N` column stays blank, same as before this feature existed). If the block is
+present, every option needs an entry — a half-filled block is a parse error,
+since a blank next to the option a learner actually chose is worse than none
+at all.
+
+## Answer-option shuffle
+
+`[layout] shuffle_options = true` (with a required `shuffle_seed`) reorders
+each question's answer options deterministically at parse time, before any
+check or CSV render sees the questions. It exists because a bank authored
+straight through tends to put the correct answer in the same slot far too
+often — one bank had option B correct in 73% of its questions, comfortably
+above its own 70% pass mark, so answering "B" to everything passed without
+reading a single question. `check_key_distribution` / `check_naive_strategies`
+(`checks/quality.py`) detect this; shuffling is the fix.
+
+The permutation is a pure function of `(shuffle_seed, exam number, question
+stem text)` — regenerating without any content change reproduces
+byte-identical CSVs, and editing one question's stem does not reshuffle its
+neighbours' options. Per-option explanations (see above) are permuted
+together with the options they describe, so an explanation always travels
+with the answer it's talking about. `ptkit generate --no-shuffle` emits the
+authored order instead, for hand-diffing against `questions-master.md`.
+
+Off by default: turning it on re-keys every question in the bank, so it is
+only safe for a course that has never been uploaded, or that is being
+deliberately re-keyed on purpose. Once enabled, `shuffle_seed` is part of the
+bank's identity — changing it reshuffles everything, so treat it like a
+schema field, not a tuning knob.
 
 ## Tests
 

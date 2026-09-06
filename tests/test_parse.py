@@ -243,6 +243,120 @@ class SectionGroupedParseTests(unittest.TestCase):
         self.assertIn("a bash-style comment, not a heading", questions[0].stem)
 
 
+class WhyBlockTests(unittest.TestCase):
+    """The optional "**Why each option:**" block: per-option explanations,
+    parsed by the same lettered-option grammar the main options use. Absent
+    entirely for a course that doesn't author these (every fixture bank so
+    far); when present it is all-or-nothing, since a blank next to the
+    option a learner actually picked is worse than none at all.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.config = ptkit.load(FIXTURES / "course.toml")
+
+    def _with_why_block(self, why_block):
+        text = (FIXTURES / "questions-master.md").read_text(encoding="utf-8")
+        return text.replace(
+            "**Correct answer:** A\n\n**Explanation:**",
+            f"**Correct answer:** A\n\n{why_block}\n\n**Explanation:**",
+            1,
+        )
+
+    def test_absent_why_block_leaves_option_explanations_empty(self):
+        from ptkit.parse import parse_exam_grouped
+        questions = parse_exam_grouped(
+            (FIXTURES / "questions-master.md").read_text(encoding="utf-8"),
+            self.config,
+        )
+        self.assertEqual(questions[0].option_explanations, {})
+
+    def test_why_block_is_parsed_per_option(self):
+        from ptkit.parse import parse_exam_grouped
+        text = self._with_why_block(
+            "**Why each option:**\n"
+            "A. Right: multiplication happens first.\n"
+            "B. Wrong: not string concatenation.\n"
+            "C. Wrong: this is valid Java.\n"
+            "D. Wrong: nothing here throws.\n"
+        )
+        questions = parse_exam_grouped(text, self.config)
+        self.assertEqual(questions[0].option_explanations, {
+            "A": "Right: multiplication happens first.",
+            "B": "Wrong: not string concatenation.",
+            "C": "Wrong: this is valid Java.",
+            "D": "Wrong: nothing here throws.",
+        })
+
+    def test_why_block_covering_fewer_than_all_options_is_a_parse_error(self):
+        from ptkit.parse import parse_exam_grouped
+        text = self._with_why_block(
+            "**Why each option:**\n"
+            "A. Right: multiplication happens first.\n"
+            "B. Wrong: not string concatenation.\n"
+        )
+        with self.assertRaises(ParseError) as caught:
+            parse_exam_grouped(text, self.config)
+        self.assertIn("every option needs one", str(caught.exception))
+
+    def test_duplicate_why_block_letter_is_a_parse_error(self):
+        from ptkit.parse import parse_exam_grouped
+        text = self._with_why_block(
+            "**Why each option:**\n"
+            "A. Right: multiplication happens first.\n"
+            "A. Said twice by mistake.\n"
+            "B. Wrong: not string concatenation.\n"
+            "C. Wrong: this is valid Java.\n"
+            "D. Wrong: nothing here throws.\n"
+        )
+        with self.assertRaises(ParseError) as caught:
+            parse_exam_grouped(text, self.config)
+        self.assertIn("duplicate", str(caught.exception))
+
+
+class ParseMasterShuffleTests(unittest.TestCase):
+    """parse_master applies config.shuffle_options itself, not just at
+    CSV-render time -- see shuffle.py's module docstring for why: the quality
+    checks read Question objects directly, so a render-only shuffle would
+    leave them looking at the pre-shuffle distribution forever.
+    """
+
+    def setUp(self):
+        self.config = ptkit.load(FIXTURES / "course.toml")
+        self.config.shuffle_options = True
+        self.config.shuffle_seed = "parse-master-shuffle-test"
+
+    def test_shuffle_options_off_leaves_the_authored_order_untouched(self):
+        self.config.shuffle_options = False
+        unshuffled = parse_master(self.config)
+        from ptkit.parse import parse_exam_grouped
+        text = (FIXTURES / "questions-master.md").read_text(encoding="utf-8")
+        authored = parse_exam_grouped(text, self.config)
+        self.assertEqual(
+            [q.options for q in unshuffled], [q.options for q in authored]
+        )
+
+    def test_shuffle_options_on_reorders_options_from_the_authored_source(self):
+        from ptkit.parse import parse_exam_grouped
+        text = (FIXTURES / "questions-master.md").read_text(encoding="utf-8")
+        authored = parse_exam_grouped(text, self.config)
+        shuffled = parse_master(self.config)
+        # Same option *texts* survive, just not necessarily under the same
+        # letters -- this fixture's seed is not guaranteed to move every
+        # question, only asserts the pipeline actually ran the shuffle step.
+        for a, s in zip(authored, shuffled):
+            self.assertEqual(sorted(a.options.values()), sorted(s.options.values()))
+
+    def test_no_shuffle_flag_bypasses_shuffle_options_for_hand_diffing(self):
+        from ptkit.parse import parse_exam_grouped
+        text = (FIXTURES / "questions-master.md").read_text(encoding="utf-8")
+        authored = parse_exam_grouped(text, self.config)
+        bypassed = parse_master(self.config, shuffle=False)
+        self.assertEqual(
+            [q.options for q in bypassed], [q.options for q in authored]
+        )
+
+
 class FencedHashMaskingTests(unittest.TestCase):
     """_mask_fenced_hashes/_unmask_fenced_hashes: the fence-tracking helper
     parse_section_grouped relies on to tell a real section heading apart

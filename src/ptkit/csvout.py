@@ -38,6 +38,10 @@ def to_row(question, render_text, domain_names=None):
     })
     for index, letter in enumerate(sorted(question.options), start=1):
         row[f"Answer Option {index}"] = render_text(question.options[letter])
+        if letter in question.option_explanations:
+            row[f"Explanation {index}"] = render_text(
+                question.option_explanations[letter]
+            )
     return row
 
 
