@@ -222,6 +222,59 @@ class SectionGroupedParseTests(unittest.TestCase):
         with self.assertRaises(ParseError):
             parse_section_grouped(text, self.config)
 
+    def test_a_hash_comment_inside_a_fence_is_not_mistaken_for_a_section(self):
+        # Python (and shell) use '#' for comments, which collides with a
+        # section-grouped heading's own "any text after '# '" grammar. A
+        # bare '# some comment' line at the start of a fenced code block
+        # must not be split off as a new section -- this is exactly what
+        # broke on the first real Python-content bank tried against this
+        # layout: lines like "# saved as script.py" inside a snippet.
+        text = (FIXTURES / "questions-master-section-grouped.md").read_text(
+            encoding="utf-8"
+        )
+        text = text.replace(
+            "System.out.println(1 * 2 * 3);\n```",
+            "System.out.println(1 * 2 * 3);\n# a bash-style comment, not a heading\n```",
+        )
+        from ptkit.parse import parse_section_grouped
+        questions = parse_section_grouped(text, self.config)
+        self.assertEqual([q.qid for q in questions],
+                          ["E1Q01", "E1Q02", "E1Q03", "E2Q01"])
+        self.assertIn("a bash-style comment, not a heading", questions[0].stem)
+
+
+class FencedHashMaskingTests(unittest.TestCase):
+    """_mask_fenced_hashes/_unmask_fenced_hashes: the fence-tracking helper
+    parse_section_grouped relies on to tell a real section heading apart
+    from a snippet's own '#'-comment line.
+    """
+
+    def setUp(self):
+        from ptkit.parse import _mask_fenced_hashes, _unmask_fenced_hashes
+        self.mask = _mask_fenced_hashes
+        self.unmask = _unmask_fenced_hashes
+
+    def test_hash_line_inside_a_fence_is_masked(self):
+        text = "```python\n# a comment\nx = 1\n```\n"
+        masked = self.mask(text)
+        self.assertNotIn("\n# a comment\n", masked)
+        self.assertIn("a comment", masked)  # only the leading '#' changes
+
+    def test_hash_line_outside_a_fence_is_untouched(self):
+        text = "# Real Section\n\nsome text\n"
+        self.assertEqual(self.mask(text), text)
+
+    def test_round_trip_restores_the_original_text(self):
+        text = "# Section\n\n```python\n# comment one\nx = 1\n# comment two\n```\nAfter.\n"
+        self.assertEqual(self.unmask(self.mask(text)), text)
+
+    def test_fence_state_toggles_back_off_after_closing_marker(self):
+        # A '#' line after a fence has closed is a real heading candidate
+        # again, not still masked.
+        text = "```python\n# inside\n```\n# Real Section\n"
+        masked = self.mask(text)
+        self.assertIn("\n# Real Section\n", masked)
+
 
 if __name__ == "__main__":
     unittest.main()

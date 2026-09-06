@@ -109,6 +109,41 @@ DOMAIN_QUESTION_HEADING_RE = re.compile(r"^### (Q\d+)\s*$", re.M)
 # number, so this deliberately matches ANY text, not a numbered pattern.
 SECTION_HEADING_RE = re.compile(r"^# (.+?)\s*$", re.M)
 
+# A fenced code block's own opening/closing ``` line, used to track fence
+# state -- see _mask_fenced_hashes below.
+FENCE_LINE_RE = re.compile(r"^```")
+# A placeholder unlikely to occur in authored Markdown, standing in for a
+# line-leading '#' found inside a fenced code block.
+_HASH_MASK = "\x00"
+
+
+def _mask_fenced_hashes(text):
+    """Replace a line-leading '#' inside a fenced code block with a
+    placeholder, so SECTION_HEADING_RE / QUESTION_HEADING_RE can't mistake a
+    snippet's own comment line for a heading.
+
+    Needed because section-grouped's heading grammar has no fixed pattern to
+    key off of (unlike "# Exam N") -- it has to match arbitrary text, which
+    also matches a bare '# comment' line in a language whose comment syntax
+    is '#' (Python, shell, ...). Length- and newline-preserving, so the
+    result can still be fed straight into SECTION_HEADING_RE.split /
+    QUESTION_HEADING_RE.split exactly as before. Reversed by
+    _unmask_fenced_hashes on each resulting body once splitting is done.
+    """
+    lines = text.split("\n")
+    in_fence = False
+    for i, line in enumerate(lines):
+        if FENCE_LINE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence and line.startswith("#"):
+            lines[i] = _HASH_MASK + line[1:]
+    return "\n".join(lines)
+
+
+def _unmask_fenced_hashes(text):
+    return text.replace(_HASH_MASK, "#")
+
 DIFFICULTY_RE = re.compile(r"^\*\*Difficulty:\*\*\s*(\S+)\s*$", re.M)
 DIFFICULTY_LEVELS = ("Easy", "Medium", "Hard")
 
@@ -341,15 +376,18 @@ def parse_section_grouped(text, config):
     the same renumbering parse_domain_grouped already does per domain.
 
     A "# ..." heading matches ANY text, unlike "# Exam N", so it also
-    matches a document's own front-matter title. A heading with no "## QNN"
-    content under it is treated as front matter and skipped silently,
-    unless it's declared in [sections] -- a declared section with zero
-    questions is a real problem, not front matter, and still raises.
+    matches a document's own front-matter title -- and, for a bank whose
+    snippets are in a language that uses '#' for comments (Python, shell,
+    ...), a bare comment line at the start of a fenced code block. Both are
+    handled: a heading with no "## QNN" content under it is treated as front
+    matter and skipped unless declared in [sections] (see below), and a '#'
+    line inside a fence never reaches the split in the first place --
+    _mask_fenced_hashes hides it first.
     """
     answer_pattern = answer_re(config.option_letters)
     option_pattern = option_re(config.option_letters)
 
-    parts = SECTION_HEADING_RE.split(text)[1:]
+    parts = SECTION_HEADING_RE.split(_mask_fenced_hashes(text))[1:]
     if not parts:
         raise ParseError("no '# <Section Name>' headings found")
 
@@ -357,7 +395,7 @@ def parse_section_grouped(text, config):
     questions = []
     for i in range(0, len(parts), 2):
         section_name = parts[i].strip()
-        body_text = parts[i + 1]
+        body_text = _unmask_fenced_hashes(parts[i + 1])
 
         blocks = QUESTION_HEADING_RE.split(body_text)[1:]
         if not blocks:
@@ -446,7 +484,7 @@ def _raw_bodies_domain_grouped(text, config):
 
 def _raw_bodies_section_grouped(text, config):
     bodies = {}
-    parts = SECTION_HEADING_RE.split(text)[1:]
+    parts = SECTION_HEADING_RE.split(_mask_fenced_hashes(text))[1:]
     running_numbers = collections.defaultdict(int)
     for i in range(0, len(parts), 2):
         section_name = parts[i].strip()
@@ -456,7 +494,8 @@ def _raw_bodies_section_grouped(text, config):
         exam = config.sections[section_name]
         for j in range(0, len(blocks), 2):
             running_numbers[exam] += 1
-            bodies[f"E{exam}Q{running_numbers[exam]:02d}"] = blocks[j + 1]
+            bodies[f"E{exam}Q{running_numbers[exam]:02d}"] = \
+                _unmask_fenced_hashes(blocks[j + 1])
     return bodies
 
 
