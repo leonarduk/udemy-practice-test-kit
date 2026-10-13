@@ -10,6 +10,18 @@ import difflib
 import re
 
 
+def letters_in_use(config, subset):
+    """The option letters a subset's questions actually use.
+
+    A question may have fewer options than config.option_letters (a course
+    with six-option multi-select questions and four-option single-choice
+    ones, say). Scoring the four-option questions against six letters
+    expects answers in E and F that cannot exist and puts chance at 1/6
+    instead of 1/4.
+    """
+    return config.option_letters[:max(len(q.options) for q in subset)]
+
+
 def check_key_distribution(ctx):
     report, config = ctx.report, ctx.config
     report.heading("Answer key distribution")
@@ -23,7 +35,7 @@ def check_key_distribution(ctx):
             # built up) -- nothing to score, so skip rather than divide by
             # zero / max() an empty Counter.
             continue
-        letters = config.option_letters
+        letters = letters_in_use(config, ctx.single_choice(exam))
         spread = "  ".join(f"{k}={counts.get(k, 0):2d}" for k in letters)
         worst_letter, worst_count = max(counts.items(), key=lambda kv: kv[1])
         line = (f"exam {exam}: {spread}   best single-letter guess = "
@@ -85,10 +97,9 @@ def check_option_lengths(ctx):
             1 for q in subset
             if len(q.options[q.answer]) < min(len(t) for t in q.distractors)
         )
-        distractor_count = len(config.option_letters) - 1
         mean_correct = sum(len(q.options[q.answer]) for q in subset) / len(subset)
         mean_distractor = sum(
-            sum(len(t) for t in q.distractors) / distractor_count for q in subset
+            sum(len(t) for t in q.distractors) / len(q.distractors) for q in subset
         ) / len(subset)
         ratio = mean_correct / mean_distractor if mean_distractor else 0
         line = (f"exam {exam}: always-shortest scores {shortest:.0%}, "
@@ -115,15 +126,15 @@ def check_option_lengths(ctx):
 
 def check_naive_strategies(ctx):
     report, config = ctx.report, ctx.config
-    chance = 1 / len(config.option_letters)
-    report.heading(f"Naive strategy scores (should all be near {chance:.0%})")
+    report.heading("Naive strategy scores (should all be near chance)")
     for exam in config.exams:
         subset = ctx.single_choice(exam)
         if not subset:
             continue
+        chance = sum(1 / len(q.options) for q in subset) / len(subset)
         best_letter = max(
             (sum(1 for q in subset if q.answer == letter) / len(subset), letter)
-            for letter in config.option_letters
+            for letter in letters_in_use(config, subset)
         )
         # Shares the parity check's scorer so the two sections can never
         # disagree about the same strategy. Comparing option TEXT against
@@ -131,7 +142,7 @@ def check_naive_strategies(ctx):
         # breaks ties by document order rather than scoring them.
         longest = naive_length_score(subset, max)
         line = (f"exam {exam}: always-{best_letter[1]} scores {best_letter[0]:.0%}, "
-                f"always-longest scores {longest:.0%}")
+                f"always-longest scores {longest:.0%} (chance {chance:.0%})")
         if best_letter[0] > chance * 1.28 or longest > config.naive_strategy_band[1]:
             report.warn(line)
         else:

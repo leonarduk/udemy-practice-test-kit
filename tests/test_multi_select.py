@@ -165,6 +165,43 @@ class UnusedOptionColumnTests(MultiSelectTestCase):
         self.assertEqual(report.failures, [])
 
 
+class MixedOptionCountTests(unittest.TestCase):
+    """Four-option single-choice questions in a course whose option_letters
+    run to F (for its six-option multi-select questions) are scored against
+    the four letters they use, not all six."""
+
+    def run_checks(self, questions):
+        from ptkit.checks import quality
+        config = types.SimpleNamespace(
+            exams=(1,), option_letters="ABCDEF",
+            exam_question_counts={1: len(questions)},
+            key_distribution_band=(0.20, 0.30), naive_strategy_band=(0.15, 0.35),
+            length_ratio_band=(0.90, 1.10),
+        )
+        self.output = io.StringIO()
+        report = Report(stream=self.output)
+        ctx = types.SimpleNamespace(
+            config=config, questions=questions, report=report,
+            for_exam=lambda e: questions,
+            single_choice=lambda e: [q for q in questions if not q.multi],
+        )
+        quality.check_key_distribution(ctx)
+        quality.check_option_lengths(ctx)
+        quality.check_naive_strategies(ctx)
+        return report
+
+    def test_a_balanced_four_option_key_does_not_warn(self):
+        questions = [
+            Question(exam=1, number=i, stem=f"s{i}",
+                     options={l: f"option {l}{i}" for l in "ABCD"},
+                     answer="ABCD"[i % 4], explanation="e", domain="d")
+            for i in range(8)
+        ]
+        report = self.run_checks(questions)
+        self.assertEqual(report.warnings, [])
+        self.assertNotIn("E=", self.output.getvalue())
+
+
 class ShuffleTests(unittest.TestCase):
     def make(self, stem):
         return Question(
