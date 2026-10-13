@@ -60,6 +60,13 @@ class Context:
     def for_exam(self, exam):
         return [q for q in self.questions if q.exam == exam]
 
+    def single_choice(self, exam):
+        """The exam's single-answer questions -- the only ones the
+        letter-position and option-length heuristics are defined for. A
+        multi-select question has no single key to pick by position or
+        length; check_multi_select_keys covers those instead."""
+        return [q for q in self.for_exam(exam) if not q.multi]
+
 
 STRUCTURAL_CHECKS = [
     structure.check_structure,
@@ -72,6 +79,7 @@ QUALITY_CHECKS = [
     quality.check_key_distribution,
     quality.check_option_lengths,
     quality.check_naive_strategies,
+    quality.check_multi_select_keys,
     quality.check_duplicates,
     structure.check_identical_options,
     hygiene.check_option_html,

@@ -15,8 +15,9 @@ def check_key_distribution(ctx):
     report.heading("Answer key distribution")
     low_share, high_share = config.key_distribution_band
     for exam in config.exams:
-        subset_size = config.exam_question_counts[exam]
-        counts = collections.Counter(q.answer for q in ctx.for_exam(exam))
+        multi = sum(1 for q in ctx.for_exam(exam) if q.multi)
+        subset_size = config.exam_question_counts[exam] - multi
+        counts = collections.Counter(q.answer for q in ctx.single_choice(exam))
         if not counts:
             # This exam hasn't been authored yet (the bank is still being
             # built up) -- nothing to score, so skip rather than divide by
@@ -66,7 +67,7 @@ def check_option_lengths(ctx):
     low, high = config.naive_strategy_band
     ratio_low, ratio_high = config.length_ratio_band
     for exam in config.exams:
-        subset = ctx.for_exam(exam)
+        subset = ctx.single_choice(exam)
         if not subset:
             continue
         # Both directions matter. A correct answer that is reliably the
@@ -117,7 +118,7 @@ def check_naive_strategies(ctx):
     chance = 1 / len(config.option_letters)
     report.heading(f"Naive strategy scores (should all be near {chance:.0%})")
     for exam in config.exams:
-        subset = ctx.for_exam(exam)
+        subset = ctx.single_choice(exam)
         if not subset:
             continue
         best_letter = max(
@@ -133,6 +134,34 @@ def check_naive_strategies(ctx):
                 f"always-longest scores {longest:.0%}")
         if best_letter[0] > chance * 1.28 or longest > config.naive_strategy_band[1]:
             report.warn(line)
+        else:
+            report.ok(line)
+
+
+def check_multi_select_keys(ctx):
+    """How many options a multi-select question keys as correct.
+
+    The multi-select analogue of the letter-position tell: if every
+    multi-select question in an exam has exactly two correct answers, a
+    learner who has noticed that only has to rank options, not judge each
+    one. Warns only when the count is perfectly uniform across five or more
+    questions -- a skew short of that is not reliably exploitable, and a
+    check that cries wolf gets skipped.
+    """
+    report, config = ctx.report, ctx.config
+    if not any(q.multi for q in ctx.questions):
+        return
+    report.heading("Multi-select key cardinality")
+    for exam in config.exams:
+        subset = [q for q in ctx.for_exam(exam) if q.multi]
+        if not subset:
+            continue
+        counts = collections.Counter(len(q.answers) for q in subset)
+        spread = "  ".join(f"{n} correct={c}" for n, c in sorted(counts.items()))
+        line = f"exam {exam}: {len(subset)} multi-select; {spread}"
+        if len(counts) == 1 and len(subset) >= 5:
+            report.warn(line + "   [every question keys the same number "
+                        "of options -- learners can count instead of judge]")
         else:
             report.ok(line)
 

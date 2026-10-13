@@ -31,8 +31,10 @@ def to_row(question, render_text, domain_names=None):
     row = {column: "" for column in COLUMNS}
     row.update({
         "Question": render_text(question.stem),
-        "Question Type": "multiple-choice",
-        "Correct Answers": str(question.correct_index),
+        "Question Type": "multi-select" if question.multi else "multiple-choice",
+        # Udemy's own template example writes a multi-select key as "1,3,4"
+        # (comma, no spaces).
+        "Correct Answers": ",".join(map(str, question.correct_indices)),
         "Overall Explanation": render_text(question.explanation),
         "Domain": domain,
     })
