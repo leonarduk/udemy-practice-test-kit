@@ -143,6 +143,28 @@ class CsvTests(MultiSelectTestCase):
         )
 
 
+class UnusedOptionColumnTests(MultiSelectTestCase):
+    def test_blank_unused_option_columns_are_not_identical_options(self):
+        # option_letters = "ABCDEF" with 4-option questions leaves Answer
+        # Option 5 and 6 blank in every row; two blanks are not two
+        # identical options a learner can see.
+        config = write_course(self.tmp, MULTI_QUESTION)
+        toml = (self.tmp / "course.toml").read_text(encoding="utf-8")
+        (self.tmp / "course.toml").write_text(
+            toml.replace('option_letters = "ABCD"', 'option_letters = "ABCDEF"'),
+            encoding="utf-8",
+        )
+        config = ptkit.load(self.tmp / "course.toml")
+        questions = ptkit.parse_master(config)
+        for exam in config.exams:
+            config.csv_path(exam).write_bytes(
+                ptkit.render(questions, exam, config).encode("utf-8")
+            )
+        report = Report(stream=io.StringIO())
+        checks_pkg.run(config, questions, report)
+        self.assertEqual(report.failures, [])
+
+
 class ShuffleTests(unittest.TestCase):
     def make(self, stem):
         return Question(

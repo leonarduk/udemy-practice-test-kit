@@ -160,7 +160,11 @@ def check_identical_options(ctx):
     broken = []
     for exam, rows in ctx.csv_rows.items():
         for i, row in enumerate(rows, 1):
+            # Blank cells are unused columns -- a 4-option question in a
+            # course whose option_letters run to F has two of them -- not
+            # options a learner sees, so they cannot collide.
             texts = [row[f"Answer Option {n}"] for n in range(1, count + 1)]
+            texts = [t for t in texts if t.strip()]
             if len(set(texts)) < len(texts):
                 broken.append(f"E{exam}Q{i:02d}")
     if broken:
@@ -169,9 +173,7 @@ def check_identical_options(ctx):
             f"identical text to the learner: {', '.join(broken)}"
         )
     else:
-        ctx.report.ok(
-            f"every question's {count} options render as {count} distinct strings"
-        )
+        ctx.report.ok("every question's options render as distinct strings")
 
 
 def check_tier_boundary(ctx):
