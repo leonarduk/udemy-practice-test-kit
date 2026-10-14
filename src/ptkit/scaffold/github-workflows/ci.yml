@@ -16,7 +16,11 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install udemy-practice-test-kit
-        run: pip install -r requirements-dev.txt
+        # --force-reinstall: on a runner whose Python persists between runs
+        # (self-hosted), a kit pin bumped to a commit with an unchanged
+        # version would otherwise be reported "already satisfied" and the old
+        # kit kept. The kit has no dependencies, so this is cheap.
+        run: pip install --force-reinstall -r requirements-dev.txt
       - name: Structural and item-quality validation
         run: ptkit validate
       - name: CSVs are in sync with questions-master.md

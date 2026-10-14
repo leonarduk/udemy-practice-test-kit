@@ -13,7 +13,10 @@ from .parse import load_raw_bodies, parse_master
 from .report import Report
 from .text import TextRenderer
 
-__version__ = "1.0.0"
+# Bump on every change that alters behaviour -- see README "Versioning". pip
+# treats a git pin whose version is unchanged as already satisfied, so a
+# course that bumps its pinned SHA without this moving keeps the old kit.
+__version__ = "1.1.0"
 
 __all__ = [
     "COLUMNS", "ConfigError", "CourseConfig", "ParseError", "Question",
