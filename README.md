@@ -39,6 +39,23 @@ deliberately, and re-run `ptkit generate --check` in the course repo when you
 do: if the CSVs go stale, the kit changed the projection and the course needs
 regenerating and re-uploading to Udemy.
 
+## Versioning
+
+`ptkit.__version__` (in `src/ptkit/__init__.py`) is the only version number;
+`pyproject.toml` reads it. **Bump it in every PR that changes behaviour**:
+the minor version when the CSV projection or a check's verdict changes, the
+patch version for anything else. `ptkit --version` prints the installed one.
+
+The bump is not cosmetic. `pip install -r requirements-dev.txt` compares
+*versions*, not commits: a course that moves its pin to a new SHA while the
+version is unchanged gets "Requirement already satisfied" and silently keeps
+the old kit wherever an earlier install survives, such as a self-hosted
+runner or a developer's environment. That is exactly how java21 moved its pin
+past the whitespace-collapse fix (`a152896`) and CI kept regenerating
+collapsed CSVs until the runner was made to `--force-reinstall`. The
+scaffolded `ci.yml` force-reinstalls for that reason; a version bump is what
+fixes the same trap everywhere else.
+
 ## Use
 
 ```bash

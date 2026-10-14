@@ -10,6 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from . import __version__
 from . import checks as checks_pkg
 from . import config as config_module
 from .config import ConfigError
@@ -139,6 +140,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="ptkit", description=__doc__.splitlines()[0]
     )
+    parser.add_argument("--version", action="version",
+                        version=f"%(prog)s {__version__}")
     parser.add_argument("--config", help="path to course.toml (default: nearest)")
     sub = parser.add_subparsers(dest="command", required=True)
 
