@@ -182,13 +182,21 @@ WHY_BLOCK_RE = re.compile(
 
 
 def answer_re(letters):
-    return re.compile(rf"^\*\*Correct answer:\*\*\s*([{letters}])\s*$", re.M)
+    """`**Correct answer:** B` (single-choice) or `**Correct answers:** A, C`
+    (multi-select). The plural is what declares a multi-select question, so
+    `**Correct answers:** D` -- one correct answer, presented as multi-select
+    -- is legal and means something different from `**Correct answer:** D`."""
+    return re.compile(
+        rf"^\*\*Correct answer(s?):\*\*\s*"
+        rf"([{letters}](?:\s*,\s*[{letters}])*)\s*$",
+        re.M,
+    )
 
 
 def option_re(letters):
     return re.compile(
         rf"^([{letters}])\.[ \t]+(.*?)"
-        rf"(?=^[{letters}]\.[ \t]|^\*\*Correct answer:\*\*)",
+        rf"(?=^[{letters}]\.[ \t]|^\*\*Correct answers?:\*\*)",
         re.M | re.S,
     )
 
@@ -227,14 +235,18 @@ def _parse_question_fields(body, where, config, answer_pattern, option_pattern):
     layout's own parser cleans `raw_stem` -- everything before the first
     option line -- itself.
 
-    Returns (raw_stem, options, answer, explanation, difficulty,
-    option_explanations).
+    Returns (raw_stem, options, answer, answers, explanation, difficulty,
+    option_explanations) -- exactly one of answer/answers is not None: answer
+    for a single-choice question, answers (a list) for a multi-select one.
     """
     letters = config.option_letters
 
     answer_match = answer_pattern.search(body)
     if not answer_match:
-        raise ParseError(f"{where}: no '**Correct answer:** X' line")
+        raise ParseError(
+            f"{where}: no '**Correct answer:** X' (or '**Correct answers:** "
+            f"X, Y') line"
+        )
 
     explanation_match = EXPLANATION_RE.search(body)
     if not explanation_match:
@@ -294,9 +306,25 @@ def _parse_question_fields(body, where, config, answer_pattern, option_pattern):
                 f"are {sorted(options)} -- every option needs one"
             )
 
+    keyed = [k.strip() for k in answer_match.group(2).split(",")]
+    if len(set(keyed)) != len(keyed):
+        raise ParseError(f"{where}: correct answer {keyed} lists a letter twice")
+    missing = [k for k in keyed if k not in options]
+    if missing:
+        raise ParseError(f"{where}: correct answer {missing} is not an option")
+    if answer_match.group(1):
+        answer, answers = None, keyed
+    elif len(keyed) > 1:
+        raise ParseError(
+            f"{where}: '**Correct answer:**' names {len(keyed)} letters -- "
+            f"write '**Correct answers:**' for a multi-select question"
+        )
+    else:
+        answer, answers = keyed[0], None
+
     raw_stem = options_region[:first_option.start()]
     return (
-        raw_stem, options, answer_match.group(1),
+        raw_stem, options, answer, answers,
         explanation_match.group(1).strip(), difficulty, option_explanations,
     )
 
@@ -319,7 +347,7 @@ def parse_exam_grouped(text, config):
             body = blocks[j + 1]
             where = f"E{exam}Q{number:02d}"
 
-            raw_stem, options, answer, explanation, difficulty, option_explanations = _parse_question_fields(
+            raw_stem, options, answer, answers, explanation, difficulty, option_explanations = _parse_question_fields(
                 body, where, config, answer_pattern, option_pattern
             )
             stem, domain_number = clean_stem(
@@ -335,6 +363,7 @@ def parse_exam_grouped(text, config):
                 stem=stem,
                 options=options,
                 answer=answer,
+                answers=answers,
                 explanation=explanation,
                 domain_number=domain_number,
                 domain=domain,
@@ -394,7 +423,7 @@ def parse_domain_grouped(text, config):
                 body = blocks[j + 1]
                 where = f"E{exam} Domain {domain_number} {label}"
 
-                raw_stem, options, answer, explanation, difficulty, option_explanations = _parse_question_fields(
+                raw_stem, options, answer, answers, explanation, difficulty, option_explanations = _parse_question_fields(
                     body, where, config, answer_pattern, option_pattern
                 )
                 running_number += 1
@@ -405,6 +434,7 @@ def parse_domain_grouped(text, config):
                     stem=strip_fences(raw_stem).strip(),
                     options=options,
                     answer=answer,
+                    answers=answers,
                     explanation=explanation,
                     domain_number=domain_number,
                     domain=domain,
@@ -467,7 +497,7 @@ def parse_section_grouped(text, config):
             body = blocks[j + 1]
             where = f"{section_name} {label}"
 
-            raw_stem, options, answer, explanation, difficulty, option_explanations = _parse_question_fields(
+            raw_stem, options, answer, answers, explanation, difficulty, option_explanations = _parse_question_fields(
                 body, where, config, answer_pattern, option_pattern
             )
             stem, domain_number = clean_stem(
@@ -484,6 +514,7 @@ def parse_section_grouped(text, config):
                 stem=stem,
                 options=options,
                 answer=answer,
+                answers=answers,
                 explanation=explanation,
                 domain_number=domain_number,
                 domain=domain,

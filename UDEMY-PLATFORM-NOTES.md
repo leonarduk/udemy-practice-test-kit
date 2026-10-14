@@ -124,3 +124,16 @@ columns even when `Explanation 1-6` and `Answer Option 5-6` are empty. `ptkit`
 emits them blank rather than dropping them, and the structure check asserts
 the on-disk template header still matches what the kit expects — so a Udemy
 template revision is caught rather than silently mis-mapped.
+
+## 8. Multi-select: what the template confirms, and what it doesn't
+
+`PracticeTestBulkQuestionUploadTemplate_V2.2.csv` itself carries a
+multi-select example row: `Question Type = multi-select`, `Correct Answers =
+"1,3,4"` (comma-separated, no spaces, quoted by the CSV writer), up to six
+`Answer Option` columns. `ptkit` emits exactly that.
+
+**Not established:** whether Udemy awards partial credit for a partly-right
+multi-select answer, or scores it all-or-nothing. Item design that relies on
+either (e.g. a "none of these" option that must be chosen alone) should be
+checked on a draft practice test before a bank depends on it. Record the
+answer here when someone does.

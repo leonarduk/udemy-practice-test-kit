@@ -228,6 +228,29 @@ present, every option needs an entry — a half-filled block is a parse error,
 since a blank next to the option a learner actually chose is worse than none
 at all.
 
+## Multi-select questions
+
+Write the answer line in the plural to make a question multi-select:
+
+```
+**Correct answers:** A, C
+```
+
+The plural is what declares the type, so `**Correct answers:** D` -- one key,
+presented as multi-select -- is legal and stays multi-select; that is the
+shape of a "which of these are defects?" question whose only right answer is
+"none of them". `**Correct answer:** A, C` (singular, two letters) is a parse
+error rather than a silent upgrade.
+
+The CSV row gets `Question Type = multi-select` and `Correct Answers = "1,3"`,
+the format Udemy's own V2.2 template example uses. Single-answer heuristics
+(key distribution, option-length parity, naive strategies) skip multi-select
+questions -- there is no single key to pick by position or length -- and
+`check_multi_select_keys` warns instead when every multi-select question in
+an exam keys the same number of options. The shuffle permutes a multi-select
+question's options per question, without slot balancing. Set
+`option_letters = "ABCDEF"` to use all six of Udemy's option columns.
+
 ## Answer-option shuffle
 
 `[layout] shuffle_options = true` (with a required `shuffle_seed`) reorders

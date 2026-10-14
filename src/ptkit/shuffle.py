@@ -10,9 +10,12 @@ distribution -- there is no separate "pre-shuffle" and "post-shuffle" view of
 a course's own questions.
 
 Ported from spring-boot-ai-udemy-practice-tests/tools/generate_csv.py, the
-bank that hit this first, generalized to the kit's option_letters. Multi-
-select (more than one correct answer) is out of scope: Question models
-exactly one correct answer, and nothing that generates one exists yet.
+bank that hit this first, generalized to the kit's option_letters.
+
+Multi-select questions get a per-question deterministic permutation only,
+with no slot balancing: "which slot holds THE answer" is not a meaningful
+quantity when there are several, and a learner cannot exploit a positional
+tell they have to apply to an unknown number of options.
 """
 
 import collections
@@ -132,6 +135,34 @@ def _shuffle_one(question, letters, target_slot, seed):
     )
 
 
+def _shuffle_multi(question, letters, seed):
+    """Permute a multi-select question's options (and their explanations)
+    by a per-question-deterministic order; every correct letter follows its
+    option to its new slot."""
+    n = len(letters)
+    new_from_old = deterministic_permutation(
+        _question_seed(seed, question.exam, question.stem), n
+    )
+    old_from_letter = {letters[old]: new for new, old in enumerate(new_from_old)}
+    return Question(
+        exam=question.exam,
+        number=question.number,
+        stem=question.stem,
+        options={letters[new]: question.options[letters[old]]
+                 for new, old in enumerate(new_from_old)},
+        answer=None,
+        answers=[letters[old_from_letter[a]] for a in question.answers],
+        explanation=question.explanation,
+        domain=question.domain,
+        domain_number=question.domain_number,
+        difficulty=question.difficulty,
+        option_explanations={
+            letters[new]: question.option_explanations[letters[old]]
+            for new, old in enumerate(new_from_old)
+        } if question.option_explanations else {},
+    )
+
+
 def shuffle_questions(questions, config):
     """Return `questions` with every question's answer options reordered.
 
@@ -153,7 +184,14 @@ def shuffle_questions(questions, config):
     for exam, positions in by_exam.items():
         buckets = collections.defaultdict(list)
         for position in positions:
-            buckets[len(questions[position].options)].append(position)
+            question = questions[position]
+            if question.multi:
+                shuffled[position] = _shuffle_multi(
+                    question, letters[:len(question.options)],
+                    config.shuffle_seed,
+                )
+                continue
+            buckets[len(question.options)].append(position)
 
         for n_options, bucket_positions in sorted(buckets.items()):
             slots = _balanced_slots(

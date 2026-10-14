@@ -57,7 +57,7 @@ def check_structure(ctx):
     report.ok(
         f"every question has options "
         f"{config.option_letters[0]}-{config.option_letters[-1]} "
-        f"and exactly one correct answer"
+        f"and a correct answer drawn from them"
     )
 
     if not config.template.exists():
@@ -76,6 +76,15 @@ def check_structure(ctx):
                       f"({len(COLUMNS)} columns)")
 
     valid_indices = {str(i) for i in range(1, len(config.option_letters) + 1)}
+
+    def valid_key(row):
+        keys = row["Correct Answers"].split(",")
+        if row["Question Type"] == "multiple-choice":
+            return len(keys) == 1 and keys[0] in valid_indices
+        return (all(k in valid_indices for k in keys)
+                and len(set(keys)) == len(keys)
+                and keys == sorted(keys, key=int))
+
     domain_values = set(config.domain_names.values())
     row_failures = 0
     for exam, rows in ctx.csv_rows.items():
@@ -100,18 +109,18 @@ def check_structure(ctx):
             if len(row) != len(COLUMNS):
                 report.fail(f"{where}: {len(row)} columns, expected {len(COLUMNS)}")
                 row_failures += 1
-            if row["Question Type"] != "multiple-choice":
+            if row["Question Type"] not in ("multiple-choice", "multi-select"):
                 report.fail(f"{where}: Question Type is {row['Question Type']!r}")
                 row_failures += 1
-            if row["Correct Answers"] not in valid_indices:
+            elif not valid_key(row):
                 report.fail(f"{where}: Correct Answers is {row['Correct Answers']!r}")
                 row_failures += 1
             if row["Domain"] not in domain_values:
                 report.fail(f"{where}: unknown Domain {row['Domain']!r}")
                 row_failures += 1
     if not row_failures:
-        report.ok(f"all CSV rows: {len(COLUMNS)} columns, multiple-choice, "
-                  f"valid answer index and domain")
+        report.ok(f"all CSV rows: {len(COLUMNS)} columns, a known question "
+                  f"type, valid answer index(es) and domain")
 
 
 def check_explanations_present(ctx):
@@ -151,7 +160,11 @@ def check_identical_options(ctx):
     broken = []
     for exam, rows in ctx.csv_rows.items():
         for i, row in enumerate(rows, 1):
+            # Blank cells are unused columns -- a 4-option question in a
+            # course whose option_letters run to F has two of them -- not
+            # options a learner sees, so they cannot collide.
             texts = [row[f"Answer Option {n}"] for n in range(1, count + 1)]
+            texts = [t for t in texts if t.strip()]
             if len(set(texts)) < len(texts):
                 broken.append(f"E{exam}Q{i:02d}")
     if broken:
@@ -160,9 +173,7 @@ def check_identical_options(ctx):
             f"identical text to the learner: {', '.join(broken)}"
         )
     else:
-        ctx.report.ok(
-            f"every question's {count} options render as {count} distinct strings"
-        )
+        ctx.report.ok("every question's options render as distinct strings")
 
 
 def check_tier_boundary(ctx):
