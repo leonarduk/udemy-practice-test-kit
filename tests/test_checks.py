@@ -9,7 +9,9 @@ from pathlib import Path
 
 import ptkit
 from ptkit import checks as checks_pkg
-from ptkit.checks.hygiene import build_private_repo_re, check_option_html
+from ptkit.checks.hygiene import (
+    build_private_repo_re, check_hygiene, check_option_html,
+)
 from ptkit.checks.quality import check_duplicates, naive_length_score
 from ptkit.checks.structure import (
     check_explanations_present, check_structure, check_tier_boundary,
@@ -248,6 +250,55 @@ class TierBoundaryTests(CourseFixtureTestCase):
         self._set_exam1_question_text(reformatted)
         check_tier_boundary(self.ctx)
         self.assertEqual(len(self.report.failures), 1)
+
+
+class SurvivingBoldTests(CourseFixtureTestCase):
+    """Six java21 explanations reached Udemy with literal `**` (2026-10-15):
+    bold text wrapping a backtick span was not stripped by the projection, and
+    the hygiene check only looked for backticks, so nothing flagged it.
+    """
+
+    def _bold_warnings(self):
+        check_hygiene(self.ctx)
+        return [w for w in self.report.warnings if "**bold**" in w]
+
+    def _write_explanation(self, explanation):
+        master = self.config.master
+        text = master.read_text(encoding="utf-8")
+        text = text.replace("Only one of these compiles.", explanation)
+        master.write_text(text, encoding="utf-8")
+        questions = ptkit.parse_master(self.config)
+        csv_text = ptkit.render(questions, 2, self.config)
+        self.config.csv_path(2).write_bytes(csv_text.encode("utf-8"))
+        self.ctx._csv_rows = None
+        return csv_text
+
+    def test_generated_csvs_strip_bold_around_a_backtick_span(self):
+        csv_text = self._write_explanation(
+            "The **omitted condition is treated as `true`**, so it loops."
+        )
+        self.assertIn("omitted condition is treated as true, so", csv_text)
+        self.assertEqual(self._bold_warnings(), [])
+
+    def test_surviving_bold_in_a_csv_is_flagged(self):
+        path = self.config.csv_path(2)
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            text.replace("Only one of these compiles.",
+                         "Only **one** of these compiles."),
+            encoding="utf-8",
+        )
+        self.ctx._csv_rows = None
+        warnings = self._bold_warnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Overall Explanation", warnings[0])
+
+    def test_python_double_star_operators_are_not_flagged(self):
+        # A Python bank's exponent and **kwargs unpacking are code, not bold.
+        self._write_explanation(
+            "Here 2**10 is 1024, x ** 2 squares, and f(a, **kwargs) unpacks."
+        )
+        self.assertEqual(self._bold_warnings(), [])
 
 
 class PrivateRepoPatternTests(unittest.TestCase):
