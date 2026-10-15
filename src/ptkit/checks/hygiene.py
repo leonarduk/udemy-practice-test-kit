@@ -7,6 +7,8 @@ what Udemy actually puts in front of a learner. See UDEMY-PLATFORM-NOTES.md.
 import collections
 import re
 
+from ..text import TAG_LT_RE
+
 # Forms in which learner-facing text can leak a reference to a PRIVATE
 # upstream repo: a generic "source repo" / "upstream source" mention, a
 # "mock-exam(s)" path segment, and the "this module's own" / "tN-NN-..."
@@ -41,6 +43,13 @@ OPTION_BR = "<br>"
 # `>` that closes something tag-shaped matters, and that is already caught by
 # the `<` that opened it.
 UNESCAPED_LT_RE = re.compile(r"<")
+
+# Question and Overall Explanation are HTML-sanitised too (live java21 upload,
+# 2026-10-15), but there only a tag-shaped `<` is lost -- `i < 3` and the
+# diamond `<>` survive -- so only that shape is flagged in those columns.
+# The CSV projection escapes it (ptkit.text.TAG_LT_RE); a finding here means
+# the CSVs were hand-edited or produced by an older kit.
+PROSE_HTML_COLUMNS = ("Question", "Overall Explanation")
 
 # Likewise `&` only matters when it forms an entity, because that is when the
 # author's literal text is transformed into something else. `P&L`, `M&A` and
@@ -98,7 +107,8 @@ def check_hygiene(ctx):
 
 
 def check_option_html(ctx):
-    """Answer Option cells are rendered as HTML by Udemy's importer.
+    """Udemy's importer HTML-parses Answer Option, Question and Overall
+    Explanation cells.
 
     Reported as a WARNING, not a failure, on purpose: it is newly shared
     across banks that were authored before anyone knew about it, so an
@@ -108,11 +118,22 @@ def check_option_html(ctx):
     bug, not a nit.
     """
     report, config = ctx.report, ctx.config
-    report.heading("Answer Option HTML safety")
+    report.heading("HTML safety (Answer Options, Question, Overall Explanation)")
     count = len(config.option_letters)
     offenders = []
     for exam, rows in ctx.csv_rows.items():
         for i, row in enumerate(rows, 1):
+            for column in PROSE_HTML_COLUMNS:
+                text = row[column]
+                if TAG_LT_RE.search(text):
+                    offenders.append(
+                        f"E{exam}Q{i:02d} {column}: unescaped tag-shaped '<' "
+                        f"-- the token is stripped as a tag"
+                    )
+                elif ENTITY_RE.search(text):
+                    offenders.append(
+                        f"E{exam}Q{i:02d} {column}: '&' forms an HTML entity"
+                    )
             for n in range(1, count + 1):
                 text = row[f"Answer Option {n}"]
                 if not text:
@@ -129,13 +150,14 @@ def check_option_html(ctx):
                     )
     if offenders:
         report.warn(
-            f"{len(offenders)} answer option(s) contain unescaped HTML "
-            f"characters -- Udemy parses these cells as HTML, so the "
-            f"offending text is dropped or mangled for the learner:"
+            f"{len(offenders)} cell(s) contain unescaped HTML characters -- "
+            f"Udemy parses these cells as HTML, so the offending text is "
+            f"dropped or mangled for the learner:"
         )
         for offender in offenders[:15]:
             report.detail(f"  {offender}")
         if len(offenders) > 15:
             report.detail(f"  ... and {len(offenders) - 15} more")
     else:
-        report.ok("no unescaped &, < or > in any answer option")
+        report.ok("no unescaped HTML in any answer option, question or "
+                  "explanation")

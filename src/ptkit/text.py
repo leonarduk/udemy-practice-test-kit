@@ -75,6 +75,16 @@ MARKDOWN_TOKEN_RE = re.compile(
     r"|\*(?!\s)([^`]+?)(?<!\s)\*"
 )
 
+# A `<` that an HTML parser would take as the start of a tag: one followed by
+# a letter (`<Point>`, `<T>`), `/` (`</x>`), `!` (`<!--`) or `?` (`<?>`).
+# Udemy's bulk upload HTML-sanitises Question and Overall Explanation as well
+# as the Answer Options, and a tag-shaped token is removed outright: a live
+# upload of the java21 bank (2026-10-15) stored `Set<Point> set` as `Set set`
+# and `List<Integer>` as `List`. A `<` that cannot start a tag -- `i < 3`,
+# the diamond `<>`, `<=` -- survives as written, so it is left alone here,
+# which keeps the escape to exactly the tokens that would otherwise vanish.
+TAG_LT_RE = re.compile(r"<(?=[A-Za-z/!?])")
+
 DEFAULT_CITATION_OWNERS = ("leonarduk",)
 
 
@@ -113,6 +123,11 @@ def unmark(text):
         return match.group(0)  # a backtick span: pass through untouched for now
 
     return MARKDOWN_TOKEN_RE.sub(replace, text)
+
+
+def escape_tag_lt(text):
+    """Escape every tag-shaped `<` as `&lt;` so it survives HTML sanitising."""
+    return TAG_LT_RE.sub("&lt;", text)
 
 
 def strip_fences(raw):

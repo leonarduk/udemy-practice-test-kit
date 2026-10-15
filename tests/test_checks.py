@@ -119,6 +119,76 @@ class OptionHtmlSafetyTests(CourseFixtureTestCase):
         self.assertEqual(self.report.warnings, [])
 
 
+class ProseHtmlSafetyTests(CourseFixtureTestCase):
+    """Question and Overall Explanation are HTML-sanitised as well (live java21
+    upload, 2026-10-15): `Set<Point> set` was stored as `Set set`. Only a
+    tag-shaped `<` is lost there -- `i < 3` and the diamond `<>` survived --
+    so only that shape is flagged in those two columns.
+    """
+
+    def _replace_in_exam2(self, old, new):
+        path = self.config.csv_path(2)
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new), encoding="utf-8")
+        self.ctx._csv_rows = None
+
+    def _escape_the_option(self):
+        # The fixture's option-side defect is covered by OptionHtmlSafetyTests;
+        # clear it so these tests see only the column under test.
+        self._replace_in_exam2("List<String>", "List&lt;String&gt;")
+
+    def test_generated_csvs_need_no_hand_escaping(self):
+        # End to end: a stem and explanation authored with raw generics come
+        # out of `ptkit generate` already escaped, so the check is clean.
+        master = self.config.master
+        text = master.read_text(encoding="utf-8")
+        text = text.replace("List<String>", "List&lt;String&gt;")
+        text = text.replace("Which declaration is legal?",
+                            "Given `Set<Point> set`, which is legal?")
+        text = text.replace("Only one of these compiles.",
+                            "Only `List<Integer>` compiles.")
+        master.write_text(text, encoding="utf-8")
+        questions = ptkit.parse_master(self.config)
+        csv_text = ptkit.render(questions, 2, self.config)
+        self.assertIn("Set&lt;Point> set", csv_text)
+        self.assertIn("List&lt;Integer> compiles", csv_text)
+        self.config.csv_path(2).write_bytes(csv_text.encode("utf-8"))
+        self.ctx._csv_rows = None
+        check_option_html(self.ctx)
+        self.assertEqual(self.report.warnings, [])
+
+    def test_tag_shaped_lt_in_a_question_is_flagged(self):
+        self._escape_the_option()
+        self._replace_in_exam2("Which declaration is legal?",
+                               "Given Set<Point> set, which is legal?")
+        check_option_html(self.ctx)
+        self.assertEqual(len(self.report.warnings), 1)
+        self.assertIn("E2Q01 Question", self.report._stream.getvalue())
+
+    def test_tag_shaped_lt_in_an_explanation_is_flagged(self):
+        self._escape_the_option()
+        self._replace_in_exam2("Only one of these compiles.",
+                               "Only List<Integer> compiles.")
+        check_option_html(self.ctx)
+        self.assertEqual(len(self.report.warnings), 1)
+        self.assertIn("E2Q01 Overall Explanation", self.report._stream.getvalue())
+
+    def test_a_lt_that_cannot_start_a_tag_is_not_flagged(self):
+        # Survived the live upload as written: comparisons and the diamond.
+        self._escape_the_option()
+        self._replace_in_exam2("Which declaration is legal?",
+                               "for (i = 0; i < 3; i++) new HashSet<>(); a <= b")
+        check_option_html(self.ctx)
+        self.assertEqual(self.report.warnings, [])
+
+    def test_escaped_question_is_clean(self):
+        self._escape_the_option()
+        self._replace_in_exam2("Which declaration is legal?",
+                               "Given Set&lt;Point> set, which is legal?")
+        check_option_html(self.ctx)
+        self.assertEqual(self.report.warnings, [])
+
 class ExplanationPresenceTests(CourseFixtureTestCase):
     def test_non_blank_explanations_pass(self):
         check_explanations_present(self.ctx)

@@ -72,6 +72,51 @@ class ToRowTests(unittest.TestCase):
         self.assertEqual(row["Explanation 4"], "Wrong: not plain text.")
 
 
+class TagShapedLtEscapeTests(unittest.TestCase):
+    """Udemy's bulk upload strips a tag-shaped `<Word>` from Question and
+    Overall Explanation (live java21 upload, 2026-10-15: `Set<Point> set` was
+    stored as `Set set`), so the projection escapes it in those columns.
+    """
+
+    def setUp(self):
+        self.render_text = TextRenderer()
+        self.question = Question(
+            exam=1, number=1,
+            stem="Given `Set<Point> set = new HashSet<>();` and `i < 3`:",
+            options={
+                "A": "one<br>two",
+                "B": "List&lt;String&gt;",
+                "C": "C",
+                "D": "D",
+            },
+            answer="A",
+            explanation="`List<Integer>` boxes; see `</b>`, `<!--`, `<?>`.",
+            domain="Generics",
+        )
+
+    def test_question_and_explanation_escape_only_tag_shaped_lt(self):
+        row = to_row(self.question, self.render_text)
+        self.assertEqual(
+            row["Question"],
+            "Given Set&lt;Point> set = new HashSet<>(); and i < 3:",
+        )
+        self.assertEqual(
+            row["Overall Explanation"],
+            "List&lt;Integer> boxes; see &lt;/b>, &lt;!--, &lt;?>.",
+        )
+
+    def test_answer_options_are_left_as_authored(self):
+        # Options legitimately carry a literal <br>, and authors escape them
+        # in the master; re-escaping here would break both.
+        row = to_row(self.question, self.render_text)
+        self.assertEqual(row["Answer Option 1"], "one<br>two")
+        self.assertEqual(row["Answer Option 2"], "List&lt;String&gt;")
+
+    def test_an_already_escaped_lt_is_not_double_escaped(self):
+        self.question.stem = "Set&lt;Point> set"
+        row = to_row(self.question, self.render_text)
+        self.assertEqual(row["Question"], "Set&lt;Point> set")
+
 class RenderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
