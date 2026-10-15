@@ -9,7 +9,7 @@ import csv
 import io
 
 from .config import COLUMNS
-from .text import TextRenderer
+from .text import TextRenderer, escape_tag_lt
 
 
 def to_row(question, render_text, domain_names=None):
@@ -28,14 +28,19 @@ def to_row(question, render_text, domain_names=None):
     else:
         domain = question.domain
 
+    # Question and Overall Explanation are HTML-sanitised by Udemy's bulk
+    # upload, so a tag-shaped `<` (`Set<Point>`) is escaped or the token is
+    # deleted from what the learner sees. Answer Options are deliberately not
+    # escaped here: they legitimately carry a literal `<br>`, and authors
+    # escape them in the master, which the HTML-safety check enforces.
     row = {column: "" for column in COLUMNS}
     row.update({
-        "Question": render_text(question.stem),
+        "Question": escape_tag_lt(render_text(question.stem)),
         "Question Type": "multi-select" if question.multi else "multiple-choice",
         # Udemy's own template example writes a multi-select key as "1,3,4"
         # (comma, no spaces).
         "Correct Answers": ",".join(map(str, question.correct_indices)),
-        "Overall Explanation": render_text(question.explanation),
+        "Overall Explanation": escape_tag_lt(render_text(question.explanation)),
         "Domain": domain,
     })
     for index, letter in enumerate(sorted(question.options), start=1):
