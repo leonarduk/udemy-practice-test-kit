@@ -66,31 +66,48 @@ is flagged now. The same reasoning applies to `&`: `P&L` and `a & b` render
 as written, so only a `&` that actually forms an entity (`&nbsp;`) is
 flagged.
 
-## 3a. Which columns are HTML-parsed — the per-column answer
+## 3a. Which columns are HTML-parsed: all three, tested directly
 
-Asked on java21 PR #10: a scan there found `<` in 42 **Question** cells (`i < 3`,
-`List<Integer>`) and 7 **Overall Explanation** cells. Does escaping need to
-extend beyond Answer Options? Settled from existing evidence rather than
-guessed:
+**Settled by a live upload on 2026-10-15 (java21 bank, course 7327045).** An
+earlier version of this section said `Question` was plain text, inferring it
+from the Python bank's `<pre>` block showing up as junk. That inference was
+wrong. Uploading the java21 bank's `practice-test-1.csv` into a fresh draft
+practice test and reading back what Udemy stored
+(`GET /api-2.0/quizzes/{id}/assessments/?draft=true`) gave:
 
-| Column | Bulk-upload (CSV) path | Evidence |
+| Column | Bulk-upload (CSV) path | Evidence (java21 Exam 1) |
 |---|---|---|
-| **Question** | **Plain text.** A `<` is displayed, not swallowed. | The Python bank uploaded a literal `<pre class="prettyprint linenums">` block and it **rendered as visible junk text** rather than formatting the code (its issue #69). A field that shows you the tag is not parsing it. |
-| **Answer Option N** | **HTML.** A `<` opens a tag and eats what follows. | Its issue #67 — `<class 'str'>` options silently losing their text. Confirmed again on the Spring bank. |
-| **Overall Explanation** | **Not established.** | No one has tested it. The Python bank proved only that *Markdown* does not render there (backticks and `*emphasis*` reached learners as literal punctuation, its issues #25/#42). That says nothing about HTML. |
+| **Question** | **HTML-sanitised.** A tag-shaped `<Word>` is removed, while a `<` that can't start a tag survives (stored as `&lt;`). | Q35's `Set<Point> set = new HashSet<>();` was stored as `Set set = new HashSet&lt;&gt;();`, so `<Point>` vanished and `<>` survived. Q4's `i < 3` survived as `i &lt; 3`. |
+| **Answer Option N** | **HTML.** Same behaviour. | The Python bank's issue #67 (`<class 'str'>` options losing their text), confirmed again on the Spring bank. |
+| **Overall Explanation** | **HTML-sanitised.** Same behaviour. | Q33's `...remove on a List<Integer> is...` was stored as `...remove on a List is...`. Q34's `static <T> List<T> asList(T... a)` became `static  List asList(T... a)`. |
 
-So `i < 3` in a stem is fine, and always has been. The seven Overall
-Explanation cells are the one genuinely open risk.
+So the rule is the same in every learner-facing column: **a `<` followed by a
+letter, `/`, `!` or `?` is eaten as a tag, along with everything up to the next
+`>`.** `i < 3`, `x <= y` and `<>` render fine. `List<String>` silently becomes
+`List`. That's a different claim, and sometimes it turns a false option or a
+correct explanation into nonsense.
 
-**How to settle it cheaply, before the first upload of a bank that has `<` in
-an explanation:** put `<b>x</b>` in one explanation on a draft practice test,
-upload, and look at the review screen. Bold `x` means HTML; the literal tag
-means plain text. One question, one upload, and the row above stops saying
-"not established".
+The Python bank's `<pre>` result is consistent with this. The sanitiser drops
+the tags it doesn't allow and escapes or keeps the rest. It was never evidence
+of plain text.
 
-Deliberately *not* guarded by a check until then. Warning on something that
-may well be harmless is how a check earns a reputation for crying wolf — see
-the note on `>` above, which cost exactly that on the Java bank.
+**Scale of the problem on a Java bank:** java21 has 68 stems and 12 explanations
+with a tag-shaped `<` across its six exams, almost all of them generics.
+
+**Fix:** escape `<` as `&lt;` in every learner-facing column, not just Answer
+Options. Whether a CSV-supplied `&lt;` renders as `<` in Question and Overall
+Explanation (as it does in Answer Options) is **not yet confirmed**. Check one
+upload before relying on it, and record the result here.
+
+**Leading indentation does not survive rendering either.** The same upload
+stored Q3's 4-space indents verbatim inside `<p>...<br>    case ...</p>`. The
+learner view renders the stem in a proportional font with `white-space:
+normal`, which collapses them. So in the learner preview's practice mode, Q3's
+`case` lines sit flush left. This was confirmed by inspecting the rendered element's
+computed style and by screenshot. Preserving spaces in the CSV (kit `a152896`) is
+still right, since the stored text is faithful, but it gains the learner
+nothing unless the spaces become `&nbsp;` or the text gets `<pre>` formatting
+via the per-question editor (§2).
 
 ## 4. Regenerating a CSV is not the same as updating the course
 
