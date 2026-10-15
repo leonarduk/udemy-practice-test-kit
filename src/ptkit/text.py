@@ -69,10 +69,19 @@ MAINTAINER_NOTE_RE = re.compile(r"\ANote: the upstream source\b", re.S)
 #      left/right-flanking rule, in miniature) -- `*word*` qualifies, ` * `
 #      does not. A spaced multiplication operator never satisfies this, so it
 #      is left alone without needing to be "unpaired" to survive.
+#
+# The emphasis content is a run of non-backtick characters OR whole backtick
+# spans, never a lone backtick. An earlier `[^`]+?` refused any backtick at
+# all, so `**omitted condition is treated as `true`**` never matched and its
+# `**` reached learners on six live java21 explanations (2026-10-15) once the
+# backticks were stripped. Taking a span whole keeps part 1's guarantee: an
+# emphasis match still cannot begin or end inside a backtick span, so the
+# asterisks in `1*1*2` remain operators, not delimiters.
+_EMPHASIS_BODY = r"((?:`[^`]*`|[^`])+?)"
 MARKDOWN_TOKEN_RE = re.compile(
     r"`[^`]*`"
-    r"|\*\*(?!\s)([^`]+?)(?<!\s)\*\*"
-    r"|\*(?!\s)([^`]+?)(?<!\s)\*"
+    rf"|\*\*(?!\s){_EMPHASIS_BODY}(?<!\s)\*\*"
+    rf"|\*(?!\s){_EMPHASIS_BODY}(?<!\s)\*"
 )
 
 # A `<` that an HTML parser would take as the start of a tag: one followed by

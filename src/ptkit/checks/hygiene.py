@@ -25,6 +25,17 @@ BASE_PRIVATE_REPO_PATTERNS = (
     r"mock-exams?[-/]",
 )
 
+# A `**bold**` pair that survived the CSV projection: an opening `**` at the
+# start of a line or after whitespace, a closing `**` before whitespace,
+# punctuation or the end of a line, both flanked inward by non-space. That is
+# the shape ptkit.text strips, so a finding means the stripping missed one --
+# as it did for six java21 explanations whose bold text wrapped a backtick
+# span (2026-10-15). Deliberately not a bare `"**" in text`: a Python bank's
+# `2**10`, `x ** 2` and `f(a, **kwargs)` are code, not Markdown.
+SURVIVING_BOLD_RE = re.compile(
+    r"(?:^|(?<=\s))\*\*(?=\S)[^\n]*?(?<=\S)\*\*(?=[\s.,;:!?)]|$)", re.M
+)
+
 # Udemy renders Answer Option cells as HTML, so an unescaped `<` opens what
 # the parser takes to be a tag and the text after it is swallowed: an option
 # reading "injected into a List<PaymentGateway> automatically" reaches the
@@ -77,12 +88,15 @@ def check_hygiene(ctx):
     private_repo_re = build_private_repo_re(config.private_repos)
     columns = learner_columns(config)
     backticked = collections.Counter()
+    bolded = collections.Counter()
     internal = []
     for exam, rows in ctx.csv_rows.items():
         for i, row in enumerate(rows, 1):
             for column in columns:
                 if "`" in row[column]:
                     backticked[column] += 1
+                if SURVIVING_BOLD_RE.search(row[column]):
+                    bolded[column] += 1
             blob = row["Question"] + row["Overall Explanation"]
             if private_repo_re.search(blob):
                 internal.append(f"E{exam}Q{i:02d}")
@@ -93,6 +107,13 @@ def check_hygiene(ctx):
                         f"-- Udemy renders these literally")
     else:
         report.ok("no Markdown backticks in any learner-facing column")
+
+    if bolded:
+        for column, count in bolded.most_common():
+            report.warn(f"{count} rows have Markdown **bold** in {column!r} "
+                        f"-- Udemy renders these literally")
+    else:
+        report.ok("no Markdown **bold** in any learner-facing column")
 
     # A private-repo leak is structural, not a quality nit -- the repo is
     # private, so any surviving reference is a dead link/path a learner can

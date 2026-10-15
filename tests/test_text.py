@@ -58,6 +58,32 @@ class StripLearnerTextTests(unittest.TestCase):
             "For example: 1*1*2*3*4 == 24 is one case.",
         )
 
+    def test_strips_bold_that_wraps_a_backtick_span(self):
+        # The emphasis content used to refuse any backtick, so bold around a
+        # code span never matched and its `**` reached learners on six live
+        # java21 explanations once the backticks were stripped.
+        self.assertEqual(
+            render("An **omitted condition is treated as `true`**."),
+            "An omitted condition is treated as true.",
+        )
+
+    def test_strips_emphasis_that_wraps_a_backtick_span(self):
+        self.assertEqual(
+            render("Only *after `start()` returns* is it running."),
+            "Only after start() returns is it running.",
+        )
+
+    def test_bold_around_a_span_keeps_the_span_asterisks(self):
+        # The span is taken whole, so its operators are never delimiters.
+        self.assertEqual(
+            render("**`1*1*2` is `2`** and `a * b` too."),
+            "1*1*2 is 2 and a * b too.",
+        )
+
+    def test_emphasis_cannot_end_inside_a_backtick_span(self):
+        # The `*` after 2 has no partner outside a span, so it stays.
+        self.assertEqual(render("2*3 is `a*b`"), "2*3 is a*b")
+
     def test_drops_trailing_verified_sentence(self):
         self.assertEqual(
             render("`byte` wraps at 127 (JLS §4.2.1). Verified: prints `-128`."),
