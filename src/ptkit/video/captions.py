@@ -16,8 +16,21 @@ from .lecture import _PAUSE
 MAX_CUE_CHARS = 84
 
 
-def cues_for_slide(slide, start, audio_seconds):
-    """(start, end, text) cues for one slide whose audio begins at `start`."""
+def cues_for_slide(slide, start, audio_seconds, spans=None):
+    """(start, end, text) cues for one slide whose audio begins at `start`.
+
+    `spans`, when the engine knows them (edge), are the [start, end] seconds
+    of real speech for each text segment between [pause] markers, measured
+    from the start of the slide's audio. Each segment's cues are then timed
+    within its own speech, so the engine's silent padding around every chunk
+    can't push the captions ahead of the voice.
+    """
+    if spans:
+        texts = [chunks for chunks in
+                 (_chunks(text) for text in _PAUSE.split(slide.narration)[::3])
+                 if chunks]
+        if len(texts) == len(spans):
+            return _cues_in_spans(texts, spans, start)
     segments = []  # (text, None) or (None, pause_seconds)
     position = 0
     for match in _PAUSE.finditer(slide.narration):
@@ -46,6 +59,18 @@ def cues_for_slide(slide, start, audio_seconds):
         length = speaking * len(text) / speech_chars if speech_chars else 0
         cues.append((clock, clock + length, text))
         clock += length
+    return cues
+
+
+def _cues_in_spans(texts, spans, start):
+    cues = []
+    for chunks, (begin, end) in zip(texts, spans):
+        chars = sum(len(chunk) for chunk in chunks)
+        clock = start + begin
+        for chunk in chunks:
+            length = (end - begin) * len(chunk) / chars
+            cues.append((clock, clock + length, chunk))
+            clock += length
     return cues
 
 

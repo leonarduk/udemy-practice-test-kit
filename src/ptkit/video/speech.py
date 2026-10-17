@@ -27,6 +27,7 @@ changes makes no network calls at all.
 """
 
 import hashlib
+import json
 import os
 import re
 import struct
@@ -124,7 +125,7 @@ def synthesise(slide, config, cache_dir, lecture_stem):
         return _recorded(slide, config, cache_dir, lecture_stem)
     ssml = to_ssml(slide.narration, config)
     path = cache_dir / f"{cache_key(ssml, config)}.wav"
-    if path.exists():
+    if path.exists() and (config.engine != "edge" or speech_spans(path) is not None):
         return path, False
     if config.engine == "silent":
         seconds = slide.word_count * 60 / config.words_per_minute + slide.pauses_seconds()
@@ -239,6 +240,43 @@ def edge_chunks(narration, config):
     return chunks
 
 
+# A sample louder than this (about -40 dBFS) counts as speech when finding
+# where an edge-tts chunk's speech starts and ends.
+SPEECH_THRESHOLD = 330
+
+
+def speech_bounds(frames):
+    """(first, last) speaking sample of 16-bit mono PCM, or None if silent.
+
+    edge-tts pads every chunk with roughly 0.6 s of silence before the speech
+    and 0.7 s after it. Captions must follow the speech, not the padding.
+    """
+    samples = memoryview(frames).cast("h")
+    first = next((i for i, s in enumerate(samples) if abs(s) > SPEECH_THRESHOLD), None)
+    if first is None:
+        return None
+    last = next(i for i in range(len(samples) - 1, first - 1, -1)
+                if abs(samples[i]) > SPEECH_THRESHOLD)
+    return first, last + 1
+
+
+def spans_path(wav_path):
+    return Path(wav_path).with_suffix(".spans.json")
+
+
+def speech_spans(wav_path):
+    """[(start, end)] seconds of real speech per spoken chunk, or None.
+
+    Written by the edge engine next to each cached slide WAV, one span per
+    text chunk between [pause] markers, so captions can be timed to the
+    speech itself.
+    """
+    path = spans_path(wav_path)
+    if not path.exists():
+        return None
+    return [tuple(span) for span in json.loads(path.read_text(encoding="utf-8"))]
+
+
 def edge_rate(rate):
     """edge-tts wants a signed percentage: "0%" -> "+0%"."""
     return rate if rate[:1] in "+-" else f"+{rate}"
@@ -257,10 +295,13 @@ def _edge(narration, config, path):
     from .build import run  # build imports this module; avoid the cycle
 
     frames = []
+    spans = []      # where each chunk's speech really is, for the captions
+    position = 0    # samples written so far
     with tempfile.TemporaryDirectory() as tmp:
         for number, (kind, value) in enumerate(edge_chunks(narration, config)):
             if kind == "pause":
                 frames.append(struct.pack("<h", 0) * int(value * SAMPLE_RATE))
+                position += int(value * SAMPLE_RATE)
                 continue
             mp3 = Path(tmp) / f"{number}.mp3"
             wav = Path(tmp) / f"{number}.wav"
@@ -272,7 +313,14 @@ def _edge(narration, config, path):
             run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(mp3),
                  "-ac", "1", "-ar", str(SAMPLE_RATE), "-sample_fmt", "s16", str(wav)])
             with wave.open(str(wav), "rb") as audio:
-                frames.append(audio.readframes(audio.getnframes()))
+                chunk = audio.readframes(audio.getnframes())
+            bounds = speech_bounds(chunk) or (0, len(chunk) // 2)
+            spans.append([(position + bounds[0]) / SAMPLE_RATE,
+                          (position + bounds[1]) / SAMPLE_RATE])
+            frames.append(chunk)
+            position += len(chunk) // 2
+    # The spans go first: a cached WAV without them is re-synthesised.
+    spans_path(path).write_text(json.dumps(spans), encoding="utf-8")
     partial = path.with_name(path.stem + ".partial.wav")
     with wave.open(str(partial), "wb") as out:
         out.setnchannels(1)
