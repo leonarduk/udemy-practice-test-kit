@@ -159,8 +159,11 @@ multi-select question type must have minimum two correct answers. It is
 invalid in rows 7, 13, 19, 22, 28, 34
 ```
 
-(row numbers count data rows, header excluded). `ptkit validate` does not
-check this yet.
+(row numbers count data rows, header excluded).
+
+* **Guarded by:** since ptkit 1.4.0 (PR #8), `ptkit validate` reports any
+  multi-select question with fewer than two correct answers as a structural
+  failure, naming the question and its key, so the CSV never reaches Udemy.
 
 * **Consequence:** the ai-code-review bank's "which are defects?" questions
   keyed a single answer whenever a PR had one defect or none (approve only),
