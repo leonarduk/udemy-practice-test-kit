@@ -313,3 +313,55 @@ length of less than 2 hours and can not have practice tests", and that
 switching between free and paid more than once limits promotional
 announcements. So a free course cannot take a practice test, and a
 practice-test-only course cannot be free.
+
+## 17. Lecture descriptions strip links; use External Resources
+
+`PATCH .../taught-courses/{course}/lectures/{id}/` with a `description`
+containing `<a href="...">` returns 200, but the stored description has the
+`<a>` removed and only its text left. This happened with and without
+`target`/`rel`, and to links to the instructor's own Udemy courses in the
+Bonus Lecture. So a Bonus Lecture that promotes other courses needs its
+links as **External Resources**. The editor makes these with two calls:
+`POST /api-2.0/users/me/external-link-assets/` `{title, url}` (201, returns
+an asset id), then `POST .../taught-courses/{course}/lectures/{id}/assets/`
+`{asset_id, type: "supplementary"}`. Confirmed on course 7385221: 5 links,
+read back as `supplementary_assets` of type `ExternalLink`.
+
+Replacing a lecture's video (Edit Content → Replace) creates a new asset,
+and the caption stays with the old asset. Upload the caption again
+afterwards.
+
+## 18. Replacing lecture videos left every lecture marked as a free preview
+
+After all 28 lecture videos of a free course were replaced (Edit Content →
+Replace), `is_free` read back as `true` on all 28 lectures. Before, only the
+2 chosen previews had it. The cause was not isolated: it may be the replace
+flow, or Udemy's handling of free courses. Either way, after any video
+replacement, re-read `is_free` from `instructor-curriculum-items` and reset
+it with `PATCH .../taught-courses/{course}/lectures/{id}/` `{"is_free": false}`.
+Each replacement makes a new asset, so its captions have to be uploaded
+again too (§17). Confirmed on course 7385221, 2026-10-17, by reading
+`is_free` back before and after.
+
+## 19. Lecture quizzes: the editor's API, and code blocks that render
+
+A course quiz (not a practice test) is two kinds of call:
+
+* Quiz: `POST /api-2.0/courses/{course}/quizzes/`
+  `{"title", "description": "", "type": "simple-quiz"}` (201, returns the id).
+  It is unplaced until the curriculum order is saved (§15), with
+  `{"id", "class": "quiz", "is_published": true}` in the `items` list.
+* Question: `POST /api-2.0/quizzes/{quiz}/assessments/` with
+  `assessment_type: "multiple-choice"`, `question` (HTML), and these as JSON
+  *strings*: `answers` (list of HTML), `feedbacks` (one per answer; the
+  "Explain why this is or isn't the best answer" text), `correct_response`
+  (e.g. `"[\"b\"]"`). Also send `related_lecture: ""`, `explanation: ""`,
+  `section: ""` and `section_name_map: "[]"`.
+  `DELETE .../assessments/{id}/` removes one.
+
+Unlike the practice-test CSV path (§1-3), the question HTML is stored
+exactly as sent. `<pre class="prettyprint linenums">` with `&lt;`/`&gt;`
+escaping keeps its line breaks, and in the student player it renders as a
+highlighted code block with line numbers. Confirmed on course 7385221: 33
+questions read back identical to what was sent, and section 2 Q1 checked in
+the student preview, 2026-10-17.
