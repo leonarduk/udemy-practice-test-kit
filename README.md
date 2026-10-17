@@ -335,6 +335,7 @@ Marp VS Code preview shows the script as notes). Directive comments such as
 |---|---|---|
 | `recorded` (default) | your takes in `recordings/<lecture>/slide-NNN.{wav,m4a,mp3,flac}`, high-passed and loudness-normalised to -19 LUFS | the published course |
 | `azure` | Azure Neural TTS over REST (stdlib `urllib`; key/region from `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION`) | drafts; small fixes after publishing |
+| `edge` | the same neural voices via the optional `edge-tts` package (7.3.1+), which uses the Edge browser's read-aloud service: no key. Pronunciations are substituted into the text and `[pause]` markers become silence between chunks. Not a licensed TTS product -- check its terms before paid use | keyless drafts; courses that accept that trade-off |
 | `silent` | silence of the estimated length | previewing slides, pacing and captions for free; CI |
 
 `recorded` is the default because Udemy's reviewers have rejected courses

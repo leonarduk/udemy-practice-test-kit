@@ -13,7 +13,7 @@ from ..config import ConfigError
 
 CONFIG_NAME = "video-course.toml"
 
-ENGINES = ("recorded", "azure", "silent")
+ENGINES = ("recorded", "azure", "edge", "silent")
 
 
 def find_config(start=None):
