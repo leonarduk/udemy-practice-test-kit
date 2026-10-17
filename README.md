@@ -254,10 +254,13 @@ Write the answer line in the plural to make a question multi-select:
 ```
 
 The plural is what declares the type, so `**Correct answers:** D` -- one key,
-presented as multi-select -- is legal and stays multi-select; that is the
-shape of a "which of these are defects?" question whose only right answer is
-"none of them". `**Correct answer:** A, C` (singular, two letters) is a parse
-error rather than a silent upgrade.
+presented as multi-select -- parses and stays multi-select, but `ptkit
+validate` fails it: Udemy rejects the whole bulk-upload CSV if any
+multi-select question keys fewer than two answers (UDEMY-PLATFORM-NOTES.md
+8a), so a "which of these are defects?" question whose only right answer is
+"none of them" cannot be multi-select. Word the options so at least two are
+always true (e.g. "which statements are true?"). `**Correct answer:** A, C`
+(singular, two letters) is a parse error rather than a silent upgrade.
 
 The CSV row gets `Question Type = multi-select` and `Correct Answers = "1,3"`,
 the format Udemy's own V2.2 template example uses. Single-answer heuristics

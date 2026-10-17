@@ -70,6 +70,7 @@ class Context:
 
 STRUCTURAL_CHECKS = [
     structure.check_structure,
+    structure.check_multi_select_minimum,
     structure.check_explanations_present,
     structure.check_tier_boundary,
     structure.check_csvs_current,
