@@ -138,6 +138,13 @@ def cmd_new_course(args):
 
 
 def main(argv=None):
+    # A Windows console defaults to cp1252, and course titles, lecture
+    # headings and stems carry characters it lacks ("Java 21 → 25") -- the
+    # first print of one crashed `ptkit video check`. Replace rather than
+    # fail: a report line with a '?' is still a report.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(
         prog="ptkit", description=__doc__.splitlines()[0]
     )
