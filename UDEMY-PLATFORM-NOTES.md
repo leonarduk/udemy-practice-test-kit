@@ -149,8 +149,76 @@ multi-select example row: `Question Type = multi-select`, `Correct Answers =
 "1,3,4"` (comma-separated, no spaces, quoted by the CSV writer), up to six
 `Answer Option` columns. `ptkit` emits exactly that.
 
-**Not established:** whether Udemy awards partial credit for a partly-right
-multi-select answer, or scores it all-or-nothing. Item design that relies on
-either (e.g. a "none of these" option that must be chosen alone) should be
-checked on a draft practice test before a bank depends on it. Record the
-answer here when someone does.
+### 8a. A multi-select question needs at least two correct answers
+
+Udemy **rejects the whole CSV** if any `multi-select` row keys fewer than two
+answers; nothing is imported. The bulk-upload dialog reports:
+
+```
+multi-select question type must have minimum two correct answers. It is
+invalid in rows 7, 13, 19, 22, 28, 34
+```
+
+(row numbers count data rows, header excluded). `ptkit validate` does not
+check this yet.
+
+* **Consequence:** the ai-code-review bank's "which are defects?" questions
+  keyed a single answer whenever a PR had one defect or none (approve only),
+  36 of 72. The bank was redesigned so every question asks "which
+  statements are true?" with options worded as a problem or as sound code,
+  which always leaves at least two true.
+* **A "none of these" option that must be chosen alone cannot be a
+  multi-select key.**
+* **Confirmed:** 2026-10-16, ai-code-review bank, course 7381469, first
+  upload of `practice-test-1.csv` into an empty draft test.
+
+### 8b. Multi-select is scored all or nothing
+
+There is **no partial credit**. In the instructor preview, Exam mode:
+
+* a question answered with one of its two correct options was marked
+  **Incorrect** and scored 0;
+* a question answered with exactly its three correct options was marked
+  **Correct**, and the attempt scored 1/36 with nothing else answered.
+
+* **Confirmed:** 2026-10-17, ai-code-review bank, course 7381469, test 1,
+  two Exam-mode attempts read from the results and review pages.
+
+## 9. Bulk-uploaded text with `**` shows literal asterisks
+
+A `**` that survives into a CSV cell (Python's power operator here, not a
+leftover bold marker) is stored as typed and renders as two asterisks in the
+stem and in an option's explanation, with no bold. So a bank with real `**`
+content needs nothing special; a leftover Markdown `**bold**` will show its
+asterisks (see §1).
+
+* **Confirmed:** 2026-10-17, ai-code-review bank, course 7381469, test 1
+  Q28 (M1-E10): `(1 + rate / 12) ** 12 - 1` in the stem and `Decimal ** int`
+  in an option explanation, read from the API, the rendered DOM and a
+  screenshot of the review page.
+
+## 10. A practice-test-only course cannot carry a downloadable file
+
+Its curriculum offers only practice tests (no lectures, so no lecture
+resources), course messages are plain text with a 1000-character limit, and
+the course-level Bulk Uploader only stores files for lectures. A bank whose
+questions depend on files (code to review) has to host them elsewhere and
+link them. The course messages accept a link once Udemy's reminder that
+"Links must be to free educational content that doesn't require students to
+register" is acknowledged; the landing page forbids external links.
+
+Practice mode's start page **does not show the practice test's
+description**, only the question count and instructions; Exam mode shows it.
+So a link that only lives in the test description is missed by learners who
+start in Practice mode. Put it in the welcome message as well.
+
+* **Confirmed:** 2026-10-16/17, course 7381469 (practice-test-only): the
+  curriculum's add-item menu, the course messages page, and both mode start
+  pages in the instructor preview. The exercise pack is hosted at
+  `leonarduk/ai-code-review-exercises`.
+
+## 11. Template V2.2 is still current (2026-10-16)
+
+The bulk-upload dialog's "Download CSV template" link points at
+`https://s.udemycdn.com/instructor/manage/PracticeTestBulkQuestionUploadTemplate_V2.2.csv`,
+and its header is unchanged. Guessed newer names (V2.3 to V3.1) return 403.
