@@ -330,3 +330,15 @@ read back as `supplementary_assets` of type `ExternalLink`.
 Replacing a lecture's video (Edit Content → Replace) creates a new asset,
 and the caption stays with the old asset. Upload the caption again
 afterwards.
+
+## 18. Replacing lecture videos left every lecture marked as a free preview
+
+After all 28 lecture videos of a free course were replaced (Edit Content →
+Replace), `is_free` read back as `true` on all 28 lectures. Before, only the
+2 chosen previews had it. The cause was not isolated: it may be the replace
+flow, or Udemy's handling of free courses. Either way, after any video
+replacement, re-read `is_free` from `instructor-curriculum-items` and reset
+it with `PATCH .../taught-courses/{course}/lectures/{id}/` `{"is_free": false}`.
+Each replacement makes a new asset, so its captions have to be uploaded
+again too (§17). Confirmed on course 7385221, 2026-10-17, by reading
+`is_free` back before and after.
