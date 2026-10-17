@@ -117,6 +117,21 @@ class SsmlTests(unittest.TestCase):
             b = config(tmp, name="en-GB-SoniaNeural")
         self.assertNotEqual(speech.cache_key("<speak/>", a), speech.cache_key("<speak/>", b))
 
+    def test_edge_chunks_substitute_pronunciations_and_split_on_pauses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = config(tmp, engine="edge",
+                         pronounce={"1Z0-831": "one Z zero eight three one", "JEP": "jep"})
+        chunks = speech.edge_chunks("Pass 1Z0-831 & relax. [pause 600ms] JEPs and JEP 512.", cfg)
+        self.assertEqual(chunks, [
+            ("say", "Pass one Z zero eight three one & relax."),
+            ("pause", 0.6),
+            ("say", "JEPs and jep 512."),
+        ])
+
+    def test_edge_rate_is_signed(self):
+        self.assertEqual(speech.edge_rate("0%"), "+0%")
+        self.assertEqual(speech.edge_rate("-5%"), "-5%")
+
     def test_unknown_engine_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ConfigError):
@@ -205,6 +220,14 @@ class BuildTests(unittest.TestCase):
             self.assertGreater(mp4.stat().st_size, 1000)
             self.assertTrue(mp4.with_suffix(".vtt").is_file())
             self.assertGreater(seconds, 2)
+            # The video must not run on past the narration.
+            import subprocess
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,duration",
+                 "-of", "csv=p=0", str(mp4)], capture_output=True, text=True, check=True)
+            durations = {kind: float(value) for kind, value in
+                         (line.split(",") for line in probe.stdout.split())}
+            self.assertLess(abs(durations["video"] - durations["audio"]), 0.2)
 
 
 if __name__ == "__main__":

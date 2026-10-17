@@ -10,6 +10,13 @@ Engines:
           stays zero-dependency, so no Azure SDK. Reads the key and region
           from environment variables named in video-course.toml; the key is
           never written to disk or printed.
+  edge    The same neural voices through the `edge-tts` package (7.3.1+),
+          which talks to the Edge browser's read-aloud service: no key, no
+          Azure resource. That service is not a licensed TTS product -- check
+          its terms before using it for paid content -- and it accepts plain
+          text only, so pronunciations are substituted into the spoken text
+          and [pause] markers become silence between separately synthesised
+          chunks. `edge-tts` is optional: install it only to use this engine.
   silent  Silence of the estimated spoken length. For previewing slide
           timing, captions and the full build before spending any TTS quota,
           and for tests and CI, which have no key.
@@ -66,10 +73,8 @@ def to_ssml(narration, config):
     )
 
 
-def _with_pronunciations(text, config):
-    if not config.pronounce:
-        return escape(text)
-    pattern = re.compile(
+def _pronounce_pattern(config):
+    return re.compile(
         "|".join(
             # Word-ish boundaries, so "JEP" does not fire inside "JEPs" unless
             # "JEPs" is itself listed (longest-first makes that win).
@@ -77,9 +82,14 @@ def _with_pronunciations(text, config):
             for term in config.pronounce
         )
     )
+
+
+def _with_pronunciations(text, config):
+    if not config.pronounce:
+        return escape(text)
     out = []
     position = 0
-    for match in pattern.finditer(text):
+    for match in _pronounce_pattern(config).finditer(text):
         out.append(escape(text[position:match.start()]))
         term = match.group(0)
         out.append(f"<sub alias={quoteattr(config.pronounce[term])}>{escape(term)}</sub>")
@@ -121,6 +131,8 @@ def synthesise(slide, config, cache_dir, lecture_stem):
         write_silence(path, max(seconds, 0.5))
     elif config.engine == "azure":
         _azure(ssml, config, path)
+    elif config.engine == "edge":
+        _edge(slide.narration, config, path)
     else:  # VideoConfig already rejects unknown engines; belt and braces
         raise ConfigError(f"unknown engine {config.engine!r}")
     return path, True
@@ -197,4 +209,74 @@ def _azure(ssml, config, path):
     # Write via a temp name so an interrupted download never poisons the cache.
     partial = path.with_suffix(".partial")
     partial.write_bytes(audio)
+    partial.replace(path)
+
+
+def edge_chunks(narration, config):
+    """[("say", text) | ("pause", seconds)] for the edge engine.
+
+    edge-tts escapes its input, so SSML <sub>/<break> cannot be passed
+    through: each pronunciation is replaced by its spoken form in the text
+    itself (captions still come from the narration, so they keep the written
+    term), and each [pause] becomes a gap between synthesised chunks.
+    """
+    def spoken(text):
+        if config.pronounce:
+            text = _pronounce_pattern(config).sub(
+                lambda match: config.pronounce[match.group(0)], text)
+        return " ".join(text.split())
+
+    chunks = []
+    position = 0
+    for match in _PAUSE.finditer(narration):
+        if text := spoken(narration[position:match.start()]):
+            chunks.append(("say", text))
+        amount, unit = match.groups()
+        chunks.append(("pause", float(amount) / (1000 if unit.lower() == "ms" else 1)))
+        position = match.end()
+    if text := spoken(narration[position:]):
+        chunks.append(("say", text))
+    return chunks
+
+
+def edge_rate(rate):
+    """edge-tts wants a signed percentage: "0%" -> "+0%"."""
+    return rate if rate[:1] in "+-" else f"+{rate}"
+
+
+def _edge(narration, config, path):
+    try:
+        import edge_tts
+    except ImportError as exc:
+        raise ConfigError(
+            "engine = \"edge\" needs the edge-tts package (7.3.1 or later): "
+            "pip install \"edge-tts>=7.3.1\""
+        ) from exc
+    import asyncio
+    import tempfile
+    from .build import run  # build imports this module; avoid the cycle
+
+    frames = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for number, (kind, value) in enumerate(edge_chunks(narration, config)):
+            if kind == "pause":
+                frames.append(struct.pack("<h", 0) * int(value * SAMPLE_RATE))
+                continue
+            mp3 = Path(tmp) / f"{number}.mp3"
+            wav = Path(tmp) / f"{number}.wav"
+            try:
+                asyncio.run(edge_tts.Communicate(
+                    value, config.voice, rate=edge_rate(config.rate)).save(str(mp3)))
+            except Exception as exc:  # network errors, 403 from an old edge-tts
+                raise ConfigError(f"edge-tts failed: {exc}") from exc
+            run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(mp3),
+                 "-ac", "1", "-ar", str(SAMPLE_RATE), "-sample_fmt", "s16", str(wav)])
+            with wave.open(str(wav), "rb") as audio:
+                frames.append(audio.readframes(audio.getnframes()))
+    partial = path.with_name(path.stem + ".partial.wav")
+    with wave.open(str(partial), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(SAMPLE_RATE)
+        out.writeframes(b"".join(frames))
     partial.replace(path)
