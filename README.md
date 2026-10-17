@@ -353,7 +353,10 @@ the captions.
 
 **Captions come from the script**, not speech recognition, so exam codes and
 API names are spelled right. Sentence timing within a slide is shared out by
-character count. Terms the voice mangles go in `[pronounce]` (applied as SSML
+character count. With the `edge` engine it is shared out within each chunk's
+measured speech: edge-tts pads every chunk between `[pause]` markers with
+about 0.6 s of silence before and 0.7 s after, which otherwise put captions
+up to ~2.7 s ahead of the voice (kit 1.4.2). Terms the voice mangles go in `[pronounce]` (applied as SSML
 `<sub alias>`), which changes the speech and leaves the captions alone.
 
 **Caching.** Synthesised audio is keyed by (engine, voice, rate, SSML) and

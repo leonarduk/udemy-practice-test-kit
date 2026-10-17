@@ -16,7 +16,7 @@ from .text import TextRenderer
 # Bump on every change that alters behaviour -- see README "Versioning". pip
 # treats a git pin whose version is unchanged as already satisfied, so a
 # course that bumps its pinned SHA without this moving keeps the old kit.
-__version__ = "1.4.1"
+__version__ = "1.4.2"
 
 __all__ = [
     "COLUMNS", "ConfigError", "CourseConfig", "ParseError", "Question",
