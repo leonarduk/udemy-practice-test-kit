@@ -143,6 +143,45 @@ class CsvTests(MultiSelectTestCase):
         )
 
 
+class MinimumTwoAnswersTests(MultiSelectTestCase):
+    """Udemy rejects the whole CSV if a multi-select row keys fewer than two
+    answers (UDEMY-PLATFORM-NOTES.md 8a), so validate must fail it."""
+
+    def validate(self, question):
+        config = write_course(self.tmp, question)
+        questions = ptkit.parse_master(config)
+        for exam in config.exams:
+            config.csv_path(exam).write_bytes(
+                ptkit.render(questions, exam, config).encode("utf-8")
+            )
+        report = Report(stream=io.StringIO())
+        checks_pkg.run(config, questions, report)
+        return report
+
+    def test_a_single_key_multi_select_question_fails(self):
+        report = self.validate(MULTI_QUESTION.replace("A, C", "D"))
+        named = [f for f in report.failures if "E1Q03" in f]
+        self.assertEqual(len(named), 1, report.failures)
+        self.assertIn("keys only D", named[0])
+        self.assertIn("at least two", named[0])
+
+    def test_the_csv_row_of_a_single_key_multi_select_also_fails(self):
+        # A stale CSV is uploaded as-is, so the row check must catch it too.
+        report = self.validate(MULTI_QUESTION.replace("A, C", "D"))
+        self.assertTrue(
+            any("row 3: Correct Answers is '4'" in f for f in report.failures),
+            report.failures,
+        )
+
+    def test_a_two_key_multi_select_question_passes(self):
+        report = self.validate(MULTI_QUESTION)
+        self.assertEqual(report.failures, [])
+
+    def test_the_check_is_structural_not_quality(self):
+        self.assertIn(checks_pkg.structure.check_multi_select_minimum,
+                      checks_pkg.STRUCTURAL_CHECKS)
+
+
 class UnusedOptionColumnTests(MultiSelectTestCase):
     def test_blank_unused_option_columns_are_not_identical_options(self):
         # option_letters = "ABCDEF" with 4-option questions leaves Answer

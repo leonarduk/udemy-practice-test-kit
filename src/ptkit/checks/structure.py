@@ -81,7 +81,10 @@ def check_structure(ctx):
         keys = row["Correct Answers"].split(",")
         if row["Question Type"] == "multiple-choice":
             return len(keys) == 1 and keys[0] in valid_indices
-        return (all(k in valid_indices for k in keys)
+        # Udemy rejects the whole CSV over a multi-select row keying fewer
+        # than two answers; see check_multi_select_minimum.
+        return (len(keys) >= 2
+                and all(k in valid_indices for k in keys)
                 and len(set(keys)) == len(keys)
                 and keys == sorted(keys, key=int))
 
@@ -121,6 +124,33 @@ def check_structure(ctx):
     if not row_failures:
         report.ok(f"all CSV rows: {len(COLUMNS)} columns, a known question "
                   f"type, valid answer index(es) and domain")
+
+
+def check_multi_select_minimum(ctx):
+    """Every multi-select question keys at least two correct answers.
+
+    Udemy rejects the whole bulk-upload CSV -- nothing is imported -- if any
+    multi-select row keys fewer than two ("multi-select question type must
+    have minimum two correct answers. It is invalid in rows ..."; see
+    UDEMY-PLATFORM-NOTES.md 8a). The parser accepts "**Correct answers:** D",
+    so this is the gate. Checked against the master rather than the CSVs so
+    the message names the question and its key letters; check_structure's
+    CSV-row check catches the same defect in a stale CSV.
+    """
+    multi = [q for q in ctx.questions if q.multi]
+    if not multi:
+        return
+    ctx.report.heading("Multi-select: at least two correct answers")
+    short = [q for q in multi if len(q.answers) < 2]
+    for q in short:
+        ctx.report.fail(
+            f"{q.qid} is multi-select but keys only "
+            f"{', '.join(q.answers)} -- Udemy rejects the whole CSV unless "
+            f"a multi-select question has at least two correct answers"
+        )
+    if not short:
+        ctx.report.ok(f"all {len(multi)} multi-select question(s) key at "
+                      f"least two correct answers")
 
 
 def check_explanations_present(ctx):
