@@ -365,3 +365,24 @@ escaping keeps its line breaks, and in the student player it renders as a
 highlighted code block with line numbers. Confirmed on course 7385221: 33
 questions read back identical to what was sent, and section 2 Q1 checked in
 the student preview, 2026-10-17.
+
+## 20. Publishing practice-test edits requires a message to learners
+
+On a published practice test, "Publish changes" opens a **required** "Send
+update message to learners" dialog. "Send and publish changes" stays
+disabled until the message box has text. Existing students see the message
+on their practice-test results page. A "Send as educational announcement"
+checkbox (limited, e.g. "4 out of 4 left this month") also sends it by
+email and the notification bell. Leave it unticked unless that's wanted.
+Because this message reaches students, agree its wording with the owner
+before publishing.
+
+Also: the first "Save question" on a published test creates a whole new
+draft (`POST /api-2.0/courses/{id}/quizzes/` `{quiz_id, draft_action:
+"create"}`) with new assessment ids, then updates the edited question in
+it. The edited field is stored as editor HTML (`<p>…</p>`), not the
+CSV-imported plain text.
+
+* **Confirmed:** java25 practice tests, course 7306443, Mock Exam 6,
+  2026-10-17, by capturing the editor's requests and reading live and draft
+  back before and after publishing.
