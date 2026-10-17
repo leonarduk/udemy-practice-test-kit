@@ -1,0 +1,3 @@
+# The shared pipeline. Pin to an immutable ref -- a commit SHA, not a branch,
+# so a rebuild of a published lecture cannot change because the kit moved.
+git+https://github.com/leonarduk/udemy-practice-test-kit@REPLACE_WITH_COMMIT_SHA

@@ -310,6 +310,61 @@ aside — needs `[checks] strip_verified_asides = false`, or the sentence
 carrying the real content is deleted, not just a redundant tail. Default
 `true` keeps every existing adopter's output unchanged.
 
+## Video courses
+
+`ptkit video` builds Udemy lecture videos from Marp Markdown. A video course
+repo owns its lectures and `video-course.toml`; the kit owns the pipeline --
+the same split as the practice-test side.
+
+```bash
+ptkit video new-course ../my-video-course
+ptkit video check                    # script problems, durations, recordings left
+ptkit video build --engine silent    # free preview: slides + timing, no voice
+ptkit video script 01-01             # reading script, slide by slide
+ptkit video build                    # build/<lecture>.mp4 + build/<lecture>.vtt
+```
+
+**One file per lecture.** Slides are separated by `---`; each slide's
+narration is its HTML comment (Marp's presenter-notes convention, so the
+Marp VS Code preview shows the script as notes). Directive comments such as
+`<!-- _class: lead -->` are not narration. `[pause 600ms]` inserts a pause.
+
+**Voice engines** (`[voice] engine`, or `--engine` per run):
+
+| Engine | What | Use for |
+|---|---|---|
+| `recorded` (default) | your takes in `recordings/<lecture>/slide-NNN.{wav,m4a,mp3,flac}`, high-passed and loudness-normalised to -19 LUFS | the published course |
+| `azure` | Azure Neural TTS over REST (stdlib `urllib`; key/region from `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION`) | drafts; small fixes after publishing |
+| `silent` | silence of the estimated length | previewing slides, pacing and captions for free; CI |
+
+`recorded` is the default because Udemy's reviewers have rejected courses
+narrated entirely by text-to-speech, and staff have said TTS may be used for
+edits but not to replace the instructor. This comes from instructor-community
+threads (2023-2025), not an official policy page -- ask policy@udemy.com
+before relying on synthetic narration for a whole course.
+
+**Timing is exact, not re-derived.** One WAV per lecture is assembled
+sample-exactly in Python (lead-in + slide audio + tail per slide) and each
+slide image is held for exactly that span, then ffmpeg encodes once. Clip-by-
+clip encoding and concatenation was rejected: each AAC segment's encoder
+priming adds a small gap, and over a long lecture they drift audibly against
+the captions.
+
+**Captions come from the script**, not speech recognition, so exam codes and
+API names are spelled right. Sentence timing within a slide is shared out by
+character count. Terms the voice mangles go in `[pronounce]` (applied as SSML
+`<sub alias>`), which changes the speech and leaves the captions alone.
+
+**Caching.** Synthesised audio is keyed by (engine, voice, rate, SSML) and
+recorded takes by file content + filter, under `build/audio-cache/`. A
+rebuild only re-synthesises slides whose script changed -- it does not spend
+TTS quota twice.
+
+Needs Node (Marp runs via `npx`, pinned to `@marp-team/marp-cli@4.5.1`),
+Chrome or Edge (Marp's PNG renderer), and ffmpeg. `ptkit video check` needs
+none of them, which is why it is the CI gate. The real build test runs with
+`PTKIT_VIDEO_E2E=1`.
+
 ## Tests
 
 ```bash
