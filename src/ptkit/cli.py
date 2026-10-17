@@ -1,4 +1,4 @@
-"""`ptkit` command line: validate, generate, new-course.
+"""`ptkit` command line: validate, generate, new-course, video.
 
 Every command resolves the course from the nearest course.toml, so they work
 from anywhere inside a course repo.
@@ -18,6 +18,7 @@ from .csvout import normalise_newlines, render
 from .model import ParseError
 from .parse import parse_master
 from .report import Report
+from .video import cli as video_cli
 
 COURSE_CHECKS_PATH = Path("tools") / "course_checks.py"
 
@@ -137,6 +138,13 @@ def cmd_new_course(args):
 
 
 def main(argv=None):
+    # A Windows console defaults to cp1252, and course titles, lecture
+    # headings and stems carry characters it lacks ("Java 21 → 25") -- the
+    # first print of one crashed `ptkit video check`. Replace rather than
+    # fail: a report line with a '?' is still a report.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(
         prog="ptkit", description=__doc__.splitlines()[0]
     )
@@ -160,6 +168,8 @@ def main(argv=None):
     new_course = sub.add_parser("new-course", help="scaffold a new course repo")
     new_course.add_argument("directory")
     new_course.set_defaults(func=cmd_new_course)
+
+    video_cli.add_parser(sub)
 
     args = parser.parse_args(argv)
     try:

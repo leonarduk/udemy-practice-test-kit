@@ -29,6 +29,12 @@ jobs:
           test -f /tmp/scaffold-smoke/.github/workflows/ci.yml
           test -f /tmp/scaffold-smoke/.gitignore
           python -c "import tomllib,pathlib; tomllib.loads(pathlib.Path('/tmp/scaffold-smoke/course.toml').read_text())"
+      - name: Scaffold a video course and check it
+        run: |
+          ptkit video new-course /tmp/video-smoke
+          test -f /tmp/video-smoke/.github/workflows/ci.yml
+          test -f /tmp/video-smoke/.gitignore
+          cd /tmp/video-smoke && ptkit video check
 
   lint-workflows:
     name: Lint GitHub Actions workflows
