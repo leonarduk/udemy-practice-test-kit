@@ -220,6 +220,14 @@ class BuildTests(unittest.TestCase):
             self.assertGreater(mp4.stat().st_size, 1000)
             self.assertTrue(mp4.with_suffix(".vtt").is_file())
             self.assertGreater(seconds, 2)
+            # The video must not run on past the narration.
+            import subprocess
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,duration",
+                 "-of", "csv=p=0", str(mp4)], capture_output=True, text=True, check=True)
+            durations = {kind: float(value) for kind, value in
+                         (line.split(",") for line in probe.stdout.split())}
+            self.assertLess(abs(durations["video"] - durations["audio"]), 0.2)
 
 
 if __name__ == "__main__":

@@ -89,6 +89,7 @@ def build_lecture(path, config, log=print):
     concat.write_text("\n".join(entries) + "\n", encoding="utf-8")
 
     mp4 = config.build_dir / f"{stem}.mp4"
+    total = sum(spans)
     run([
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
         "-f", "concat", "-safe", "0", "-i", str(concat),
@@ -96,12 +97,13 @@ def build_lecture(path, config, log=print):
         "-vf", f"fps={config.fps},scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p",
         "-c:v", "libx264", "-tune", "stillimage", "-preset", "medium", "-crf", "18",
         "-c:a", "aac", "-b:a", "192k", "-ac", "2",
-        "-shortest", "-movflags", "+faststart",
+        # -shortest alone leaves the still-image stream running ~2.5 s past
+        # the audio (the repeated last concat entry), so cap it explicitly.
+        "-shortest", "-t", f"{total:.3f}", "-movflags", "+faststart",
         str(mp4),
     ])
     vtt = config.build_dir / f"{stem}.vtt"
     vtt.write_text(captions.to_vtt(cues), encoding="utf-8")
-    total = sum(spans)
     log(f"  wrote {mp4.name} ({total / 60:.1f} min) and {vtt.name}")
     return mp4, total
 
