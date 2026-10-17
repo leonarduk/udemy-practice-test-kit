@@ -313,3 +313,20 @@ length of less than 2 hours and can not have practice tests", and that
 switching between free and paid more than once limits promotional
 announcements. So a free course cannot take a practice test, and a
 practice-test-only course cannot be free.
+
+## 17. Lecture descriptions strip links; use External Resources
+
+`PATCH .../taught-courses/{course}/lectures/{id}/` with a `description`
+containing `<a href="...">` returns 200, but the stored description has the
+`<a>` removed and only its text left. This happened with and without
+`target`/`rel`, and to links to the instructor's own Udemy courses in the
+Bonus Lecture. So a Bonus Lecture that promotes other courses needs its
+links as **External Resources**. The editor makes these with two calls:
+`POST /api-2.0/users/me/external-link-assets/` `{title, url}` (201, returns
+an asset id), then `POST .../taught-courses/{course}/lectures/{id}/assets/`
+`{asset_id, type: "supplementary"}`. Confirmed on course 7385221: 5 links,
+read back as `supplementary_assets` of type `ExternalLink`.
+
+Replacing a lecture's video (Edit Content → Replace) creates a new asset,
+and the caption stays with the old asset. Upload the caption again
+afterwards.
