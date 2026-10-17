@@ -342,3 +342,26 @@ it with `PATCH .../taught-courses/{course}/lectures/{id}/` `{"is_free": false}`.
 Each replacement makes a new asset, so its captions have to be uploaded
 again too (§17). Confirmed on course 7385221, 2026-10-17, by reading
 `is_free` back before and after.
+
+## 19. Lecture quizzes: the editor's API, and code blocks that render
+
+A course quiz (not a practice test) is two kinds of call:
+
+* Quiz: `POST /api-2.0/courses/{course}/quizzes/`
+  `{"title", "description": "", "type": "simple-quiz"}` (201, returns the id).
+  It is unplaced until the curriculum order is saved (§15), with
+  `{"id", "class": "quiz", "is_published": true}` in the `items` list.
+* Question: `POST /api-2.0/quizzes/{quiz}/assessments/` with
+  `assessment_type: "multiple-choice"`, `question` (HTML), and these as JSON
+  *strings*: `answers` (list of HTML), `feedbacks` (one per answer; the
+  "Explain why this is or isn't the best answer" text), `correct_response`
+  (e.g. `"[\"b\"]"`). Also send `related_lecture: ""`, `explanation: ""`,
+  `section: ""` and `section_name_map: "[]"`.
+  `DELETE .../assessments/{id}/` removes one.
+
+Unlike the practice-test CSV path (§1-3), the question HTML is stored
+exactly as sent. `<pre class="prettyprint linenums">` with `&lt;`/`&gt;`
+escaping keeps its line breaks, and in the student player it renders as a
+highlighted code block with line numbers. Confirmed on course 7385221: 33
+questions read back identical to what was sent, and section 2 Q1 checked in
+the student preview, 2026-10-17.
