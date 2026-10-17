@@ -1,0 +1,32 @@
+# Configuration for `ptkit video`. Safe to commit: no secrets live here --
+# the Azure key is read from the environment variable named in [voice].
+
+[course]
+name = "TODO: course title"
+slug = "todo-slug"
+
+[video]
+lectures_dir = "lectures"       # NN-NN-topic.md, built in filename order
+recordings_dir = "recordings"   # recordings/<lecture>/slide-001.wav ...
+build_dir = "build"             # MP4 + VTT output; gitignored
+theme = "themes/course.css"     # Marp theme; slides use `theme: course`
+image_scale = 1.5               # 1280x720 * 1.5 = 1920x1080
+lead_in = 0.4                   # seconds of silence before each slide's voice
+tail = 0.8                      # ... and after it
+words_per_minute = 150          # for duration estimates before audio exists
+
+[voice]
+# recorded: your own takes (default -- Udemy has rejected courses narrated
+#           wholly by text-to-speech; see the kit README "Video courses")
+# azure:    Azure Neural TTS, for drafts and small post-publish fixes
+# silent:   no voice, estimated timing -- free preview of slides and pacing
+engine = "recorded"
+name = "en-GB-RyanNeural"       # Azure voice, when engine = "azure"
+rate = "0%"                     # e.g. "-5%" to slow the synthetic voice
+key_env = "AZURE_SPEECH_KEY"
+region_env = "AZURE_SPEECH_REGION"
+
+# How to say terms the voice would otherwise mangle. The written term stays
+# in the captions; only the speech changes.
+[pronounce]
+# "1Z0-831" = "one Z zero, eight three one"

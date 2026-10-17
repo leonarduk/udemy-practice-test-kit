@@ -1,0 +1,4 @@
+# Rendered output: regenerate with `ptkit video build`.
+build/
+__pycache__/
+.venv/

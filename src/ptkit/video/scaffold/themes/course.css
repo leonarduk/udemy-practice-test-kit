@@ -1,0 +1,20 @@
+/* @theme course */
+/* Based on Marp's default theme. 16:9 at 1280x720 (rendered at 1.5x). Large
+   type on purpose: Udemy learners often watch on a phone or a small window. */
+@import 'default';
+
+section {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 32px;
+  padding: 56px 72px;
+  background: #fbfbfd;
+  color: #1d2330;
+}
+h1 { font-size: 56px; color: #0b4f8a; }
+h2 { font-size: 44px; color: #0b4f8a; }
+code { font-family: "JetBrains Mono", Consolas, monospace; }
+pre { font-size: 26px; border-radius: 10px; }
+section.lead { justify-content: center; text-align: center; }
+section.lead h1 { font-size: 72px; }
+strong { color: #b4530a; }
+footer { font-size: 18px; color: #6b7280; }

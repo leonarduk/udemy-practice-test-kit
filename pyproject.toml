@@ -7,7 +7,7 @@ name = "udemy-practice-test-kit"
 # Single source of truth: ptkit.__version__ (src/ptkit/__init__.py). See
 # README "Versioning" for when to bump it.
 dynamic = ["version"]
-description = "Shared tooling for Udemy practice-test question banks: master-Markdown parser, bulk-upload CSV projection, and item-quality validation."
+description = "Shared tooling for Udemy courses: practice-test banks (master-Markdown parser, bulk-upload CSV projection, item-quality validation) and video lectures (Marp slides + script to MP4 and captions)."
 readme = "README.md"
 requires-python = ">=3.11"
 # Deliberately zero runtime dependencies. The adopting course repos advertise
@@ -25,4 +25,4 @@ version = {attr = "ptkit.__version__"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-ptkit = ["scaffold/*", "scaffold/**/*"]
+ptkit = ["scaffold/*", "scaffold/**/*", "video/scaffold/*", "video/scaffold/**/*"]

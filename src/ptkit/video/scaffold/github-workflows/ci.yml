@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+permissions:
+  contents: read
+jobs:
+  check:
+    name: Check lecture scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install udemy-practice-test-kit
+        # --force-reinstall: see the kit README "Versioning" -- a bumped pin
+        # with an unchanged version is otherwise "already satisfied".
+        run: pip install --force-reinstall -r requirements-dev.txt
+      - name: Lecture scripts
+        # Network-free and render-free: no TTS key, Marp or ffmpeg in CI.
+        run: ptkit video check
