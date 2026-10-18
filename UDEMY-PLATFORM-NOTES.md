@@ -386,3 +386,32 @@ CSV-imported plain text.
 * **Confirmed:** java25 practice tests, course 7306443, Mock Exam 6,
   2026-10-17, by capturing the editor's requests and reading live and draft
   back before and after publishing.
+
+## 21. The Captions tab uploads one file at a time; extra files are dropped
+
+On the Captions tab, each lecture has its own upload input. If you hand a
+second lecture's `.vtt` to its input while the first is still uploading, the
+second is silently dropped: no error, no caption, and the tab looks normal.
+Wait until each caption shows (the tab's "Uploaded / A few seconds ago", or
+the lecture's asset `captions` in the curriculum API) before sending the
+next one. Uploads sent one at a time all succeeded on the same page load.
+
+* **Confirmed:** course 7385513 (What's New in Python 3.14), 2026-10-17.
+  23 captions sent back to back in three bursts left only the first of each
+  burst (lectures 3, 7 and 16) captioned. After a reload and the §12 MIME
+  patch, the other 19 were sent one at a time, each checked through the
+  API, and all 19 took.
+
+## 22. Course messages: a synthetic paste is not saved
+
+The landing-page description accepts HTML pasted by a synthetic paste event
+(§14), and it's saved. The Course messages tab's two editors (Welcome,
+Congratulations) do not save it: the text appeared in both editors, Save
+was clicked, and after a reload both were empty. Type the messages in, or
+use the editor by hand.
+
+* **Confirmed:** course 7385513, 2026-10-17, by reloading the tab after
+  Save. Keyboard input was tried next but didn't reach the editors while
+  the Chrome window was minimised (screenshots also timed out then), so
+  whether typed text saves is not yet tested here; the Java 25 course's
+  messages were set by hand.
