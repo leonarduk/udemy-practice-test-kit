@@ -1,0 +1,66 @@
+name: Release
+# Pushing a tag vX.Y.Z publishes a GitHub release for that commit. Courses
+# still pin by commit SHA (README "Install": a tag can be repointed, a SHA
+# cannot), so the release notes lead with the SHA pin; the release is the
+# human-readable changelog and a place to fetch a built wheel from.
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the main-branch check below can see ancestry.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the tag matches ptkit.__version__
+        # pip compares versions, not commits (README "Versioning"), so a tag
+        # whose name disagrees with the packaged version would advertise a
+        # version that pip never sees.
+        run: |
+          version="$(python -c "import ast,pathlib; t=ast.parse(pathlib.Path('src/ptkit/__init__.py').read_text()); print(next(n.value.value for n in t.body if isinstance(n, ast.Assign) and n.targets[0].id == '__version__'))")"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match ptkit.__version__ ${version}"
+            exit 1
+          fi
+      - name: Check the tagged commit is on main
+        # A release cut from an unmerged branch would hand courses a SHA
+        # that never went through review.
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::${GITHUB_SHA} is not on main"
+            exit 1
+          fi
+      - name: Test
+        run: |
+          pip install -e .
+          python -m unittest discover -s tests
+      - name: Build
+        run: |
+          pip install build
+          python -m build
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Pin this release by commit SHA:"
+            echo
+            echo '```'
+            echo "git+https://github.com/${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+            echo '```'
+            echo
+          } > notes.md
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file notes.md \
+            --generate-notes \
+            --verify-tag
