@@ -56,6 +56,12 @@ collapsed CSVs until the runner was made to `--force-reinstall`. The
 scaffolded `ci.yml` force-reinstalls for that reason; a version bump is what
 fixes the same trap everywhere else.
 
+**Releasing.** Once a version bump is merged to `main`, tag it
+(`git tag v1.4.2 <sha> && git push origin v1.4.2`). `release.yml` checks the
+tag matches `ptkit.__version__` and is on `main`, runs the tests, and
+publishes a GitHub release with the wheel, the sdist and the SHA to pin.
+Courses keep pinning by SHA; the release is the changelog.
+
 ## Use
 
 ```bash
