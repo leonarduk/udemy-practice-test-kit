@@ -369,6 +369,45 @@ Chrome or Edge (Marp's PNG renderer), and ffmpeg. `ptkit video check` needs
 none of them, which is why it is the CI gate. The real build test runs with
 `PTKIT_VIDEO_E2E=1`.
 
+## Claude Code skills: `/udemy-course-check` and `/yt-promo`
+
+`skills/udemy-course-check/` is a Claude Code skill that verifies a course end
+to end, read-only:
+
+- **Repo:** `check_repo.py` works on video and practice-test courses. It checks
+  the kit pin, `ptkit video check` / `validate` / `generate --check`, the
+  samples, the renders (720p, no silent tail, 10 MB cap), the listing limits
+  and the verbatim AI disclosure, promotion only in the Bonus Lecture,
+  stripped-`<` risks, and predictable answer keys. It writes a manifest.
+- **Live course:** `udemy_check.js` runs in a signed-in Udemy tab and compares
+  the course with that manifest: curriculum order, processed videos,
+  captions against the local VTTs, free previews, promotion rules, quizzes,
+  and draft/live parity for practice tests.
+- **Pronunciation:** `transcribe.py` and `compare.py` run a Whisper pass for
+  TTS narration.
+
+Each rule points at the section of `UDEMY-PLATFORM-NOTES.md` it came from.
+
+`skills/yt-promo/` cleans up the text of a course's YouTube promo video:
+- it rewrites the title and description;
+- it turns YouTube's auto-transcript into a corrected English `.srt`, with a
+  table of the speech-recognition errors seen so far;
+- it flags voiceover problems, such as "real exam questions" or wrong code,
+  that captions can't fix.
+
+It never changes YouTube itself.
+
+Install them for your user by copying the folders into Claude Code's skills
+directory. Re-copy after pulling changes.
+
+```bash
+cp -r skills/udemy-course-check skills/yt-promo ~/.claude/skills/
+```
+
+Then type `/udemy-course-check` in a course repo, or ask Claude to "verify
+the course". For a promo, type `/yt-promo <youtube link>`. The scripts need Python 3.11+ and ffmpeg/ffprobe. The
+pronunciation pass also needs `faster-whisper`.
+
 ## Tests
 
 ```bash
