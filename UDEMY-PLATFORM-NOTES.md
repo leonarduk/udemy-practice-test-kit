@@ -415,3 +415,30 @@ use the editor by hand.
   the Chrome window was minimised (screenshots also timed out then), so
   whether typed text saves is not yet tested here; the Java 25 course's
   messages were set by hand.
+
+## 21. Quality review: AI disclosure first, and no course lists in lecture descriptions
+
+First quality review of a TTS-narrated video course (course 7385221,
+2026-10-18) came back "Needs fixes" with two required items:
+
+* **AI disclosure, verbatim, at the very top of the description.** Any use
+  of AI (here, TTS narration) needs the exact sentence "This course
+  contains the use of artificial intelligence." as the first thing in the
+  course description. A line further down that says "the voice-over is
+  AI-generated" was **not** enough. The Help Center link in the feedback
+  (`/hc/en-us/articles/33490280024087`) now redirects; the wording came
+  from that article's quoted text and the Udemy staff community post
+  "AI Policy Clarification…" (2025-11-06), which agree. Put it in the
+  listing template from day one.
+* **No list of your other courses in a lecture description, even in the
+  Bonus Lecture.** The reviewer asked for the Bonus Lecture description
+  that named five other courses to be removed. The same lecture's External
+  Resource links to those courses, and a video slide naming them, were
+  not flagged. Keep promotion to resources and the video.
+* **Recommended (not required) "Audio Quality":** the TTS was judged
+  "sufficient to match with Udemy's Audio Standards", with a warning that
+  audio reported as robotic or mispronounced can be re-reviewed by Trust
+  and Safety. The Whisper-transcription pronunciation pass (see the java25
+  course STATUS.md) is the defence.
+* Fixes are then marked "Mark as fixed" per item on
+  `/manage/feedback/course` before "Resubmit for review".
