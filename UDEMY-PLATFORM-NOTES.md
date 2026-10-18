@@ -402,16 +402,18 @@ next one. Uploads sent one at a time all succeeded on the same page load.
   patch, the other 19 were sent one at a time, each checked through the
   API, and all 19 took.
 
-## 22. Course messages: a synthetic paste is not saved
+## 22. Course messages: a synthetic paste is not saved; typing is
 
 The landing-page description accepts HTML pasted by a synthetic paste event
 (§14), and it's saved. The Course messages tab's two editors (Welcome,
 Congratulations) do not save it: the text appeared in both editors, Save
-was clicked, and after a reload both were empty. Type the messages in, or
-use the editor by hand.
+was clicked, and after a reload both were empty. Typing the text with the
+keyboard (Enter between paragraphs) does save.
 
-* **Confirmed:** course 7385513, 2026-10-17, by reloading the tab after
-  Save. Keyboard input was tried next but didn't reach the editors while
-  the Chrome window was minimised (screenshots also timed out then), so
-  whether typed text saves is not yet tested here; the Java 25 course's
-  messages were set by hand.
+Keyboard input only reaches the page while the Chrome window is visible:
+with it minimised, typed text went nowhere and screenshots timed out.
+
+* **Confirmed:** course 7385513, 2026-10-17/18. Paste then Save then reload
+  gave two empty editors. Typed with Chrome in front, then Save ("Your
+  changes have been successfully saved") and a reload, both messages read
+  back with their paragraphs (4 and 3).
