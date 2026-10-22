@@ -68,6 +68,45 @@ only.
 The Udemy course URL is normally in the description or the title — keep it
 exactly as given.
 
+### No browser pane (cloud sessions): yt-dlp
+
+A cloud session has no `mcp__Claude_Browser__*` tools, and a plain `curl` of
+the watch page or of `youtubei/v1/player` comes back `LOGIN_REQUIRED` /
+"Sign in to confirm you're not a bot". `yt-dlp` gets through. Install it in
+a venv in the scratchpad, and write its output to a new, empty directory
+there:
+
+```bash
+python3 -m venv "$S/ytv" && "$S/ytv/bin/pip" install -q yt-dlp
+mkdir -p "$S/yt" && cd "$S/yt"
+"$S/ytv/bin/yt-dlp" --skip-download -j "<watch url>" > meta.json
+"$S/ytv/bin/yt-dlp" --skip-download --write-auto-subs --sub-langs en \
+  --sub-format json3 -o vid "<watch url>"
+```
+
+`$S` is the scratchpad. `meta.json` gives `title`, `description`, `duration`
+(the `lengthSeconds` for step 4) and `upload_date`. `vid.en.json3` holds the
+auto-captions; print its segments with `python3 -I`:
+
+```python
+import json
+d = json.load(open("vid.en.json3"))
+for e in d["events"]:
+    t = "".join(s.get("utf8", "") for s in e.get("segs", [])).replace("\n", " ").strip()
+    if t:
+        print(f'{e["tStartMs"]/1000:7.2f}  {t}')
+```
+
+These are rolling captions: the segments overlap and break mid-sentence.
+Use their start times and merge the text into sentence cues. If no
+`vid.en.json3` is written, the auto-captions aren't ready yet (see above).
+`https://www.youtube.com/oembed?url=<watch url>&format=json` returns the title
+and channel even when yt-dlp fails.
+
+From the cloud, the Udemy course page and `api-2.0` are behind a Cloudflare
+challenge too, so facts that only the course page has (price, free or paid)
+can't be checked. Ask the user.
+
 ## 2. Title
 
 `<Certification> (<exam code>) Practice Tests: <N> Exam-Style Questions with Explanations`
