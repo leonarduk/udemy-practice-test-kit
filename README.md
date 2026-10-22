@@ -411,7 +411,8 @@ cp -r skills/udemy-course-check skills/yt-promo ~/.claude/skills/
 ```
 
 Then type `/udemy-course-check` in a course repo, or ask Claude to "verify
-the course". For a promo, type `/yt-promo <youtube link>`. The scripts need Python 3.11+ and ffmpeg/ffprobe. The
+the course". For a promo, type `/yt-promo <youtube link>`; in a cloud session with no
+browser pane it falls back to `yt-dlp`. The scripts need Python 3.11+ and ffmpeg/ffprobe. The
 pronunciation pass also needs `faster-whisper`.
 
 ## Tests
