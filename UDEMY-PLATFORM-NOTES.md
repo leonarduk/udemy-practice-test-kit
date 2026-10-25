@@ -402,7 +402,7 @@ next one. Uploads sent one at a time all succeeded on the same page load.
   patch, the other 19 were sent one at a time, each checked through the
   API, and all 19 took.
 
-## 22. Course messages: a synthetic paste is not saved
+## 22. Course messages: a synthetic paste is not saved, typed text is
 
 The landing-page description accepts HTML pasted by a synthetic paste event
 (§14), and it's saved. The Course messages tab's two editors (Welcome,
@@ -410,11 +410,25 @@ Congratulations) do not save it: the text appeared in both editors, Save
 was clicked, and after a reload both were empty. Type the messages in, or
 use the editor by hand.
 
+Real keystrokes do save. To change part of a message, select the old text
+with a `Range` inside the editor (walk its text nodes for the substring,
+`setStart`/`setEnd`, add it to the selection), then type the replacement
+with the browser tool's keyboard input (`computer` action `type`), not a
+paste or `execCommand`. Click Save, wait for "Your changes have been
+successfully saved.", and reload to confirm. Save stamps both editors'
+"Last edited" date, even the one you didn't touch.
+
 * **Confirmed:** course 7385513, 2026-10-17, by reloading the tab after
   Save. Keyboard input was tried next but didn't reach the editors while
-  the Chrome window was minimised (screenshots also timed out then), so
-  whether typed text saves is not yet tested here; the Java 25 course's
-  messages were set by hand.
+  the Chrome window was minimised (screenshots also timed out then).
+* **Confirmed (typed text saves):** java25 course 7306443, 2026-10-25. The
+  welcome message's stale "3 full-length mock exams - 150" was selected
+  with a Range and retyped as "6 full-length mock exams - 300". After Save
+  and a full reload the editor read back the new text, with the rest of
+  both messages unchanged.
+* The tab can raise a "Leave site?" unsaved-changes prompt on reload even
+  when nothing was typed, and a forced navigation was still blocked. Check
+  the editors' text before trusting that the open page matches the server.
 
 ## 21. Quality review: AI disclosure first, and no course lists in lecture descriptions
 
