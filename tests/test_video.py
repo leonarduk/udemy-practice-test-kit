@@ -3,7 +3,6 @@
 import io
 import os
 import shutil
-import struct
 import tempfile
 import textwrap
 import unittest
@@ -12,7 +11,7 @@ from pathlib import Path
 from ptkit.model import ParseError
 from ptkit.report import Report
 from ptkit.video import captions, checks, speech
-from ptkit.video.config import ConfigError, VideoConfig
+from ptkit.video.config import ENGINES, ConfigError, VideoConfig
 from ptkit.video.lecture import is_directive, parse_lecture
 
 SCAFFOLD = Path(__file__).parent.parent / "src" / "ptkit" / "video" / "scaffold"
@@ -118,53 +117,13 @@ class SsmlTests(unittest.TestCase):
             b = config(tmp, name="en-GB-SoniaNeural")
         self.assertNotEqual(speech.cache_key("<speak/>", a), speech.cache_key("<speak/>", b))
 
-    def test_edge_chunks_substitute_pronunciations_and_split_on_pauses(self):
+    def test_edge_engine_rejected_with_the_reason(self):
+        # Removed: its audio carries no publishing rights (platform notes 23).
         with tempfile.TemporaryDirectory() as tmp:
-            cfg = config(tmp, engine="edge",
-                         pronounce={"1Z0-831": "one Z zero eight three one", "JEP": "jep"})
-        chunks = speech.edge_chunks("Pass 1Z0-831 & relax. [pause 600ms] JEPs and JEP 512.", cfg)
-        self.assertEqual(chunks, [
-            ("say", "Pass one Z zero eight three one & relax."),
-            ("pause", 0.6),
-            ("say", "JEPs and jep 512."),
-        ])
-
-    def test_speech_bounds_skip_leading_and_trailing_silence(self):
-        quiet, loud = struct.pack("<h", 5), struct.pack("<h", 4000)
-        frames = quiet * 100 + loud * 50 + quiet * 30 + loud * 20 + quiet * 70
-        self.assertEqual(speech.speech_bounds(frames), (100, 200))
-        self.assertIsNone(speech.speech_bounds(quiet * 10))
-
-    def test_edge_cache_needs_its_speech_spans(self):
-        # A cached edge WAV from before spans were recorded is re-synthesised,
-        # so its captions can be timed to the speech.
-        with tempfile.TemporaryDirectory() as tmp:
-            cfg = config(tmp, engine="edge")
-            slide = parse_lecture(lecture(tmp, TWO_SLIDES)).slides[0]
-            cache = Path(tmp) / "cache"
-            cache.mkdir()
-            wav = cache / f"{speech.cache_key(speech.to_ssml(slide.narration, cfg), cfg)}.wav"
-            speech.write_silence(wav, 1.0)
-            made = []
-
-            def fake_edge(narration, config, path):
-                made.append(narration)
-                speech.spans_path(path).write_text("[[0.5, 0.9]]", encoding="utf-8")
-                speech.write_silence(path, 1.0)
-
-            original = speech._edge
-            speech._edge = fake_edge
-            try:
-                self.assertEqual(speech.synthesise(slide, cfg, cache, "01-01")[1], True)
-                self.assertEqual(speech.synthesise(slide, cfg, cache, "01-01")[1], False)
-            finally:
-                speech._edge = original
-            self.assertEqual(len(made), 1)
-            self.assertEqual(speech.speech_spans(wav), [(0.5, 0.9)])
-
-    def test_edge_rate_is_signed(self):
-        self.assertEqual(speech.edge_rate("0%"), "+0%")
-        self.assertEqual(speech.edge_rate("-5%"), "-5%")
+            with self.assertRaises(ConfigError) as caught:
+                config(tmp, engine="edge")
+        self.assertIn("azure", str(caught.exception))
+        self.assertNotIn("edge", ENGINES)
 
     def test_unknown_engine_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -182,37 +141,6 @@ class CaptionTests(unittest.TestCase):
         self.assertAlmostEqual(cues[0][0], 10.0)
         self.assertAlmostEqual(cues[-1][1], 14.5)
         self.assertAlmostEqual(cues[1][0] - cues[0][1], 0.5)  # the pause
-
-    def test_cues_follow_measured_speech_spans(self):
-        # The edge engine pads each chunk with silence; given where the speech
-        # really is, each segment's cues sit inside its own span.
-        with tempfile.TemporaryDirectory() as tmp:
-            slide = parse_lecture(lecture(tmp, TWO_SLIDES)).slides[1]
-        cues = captions.cues_for_slide(slide, start=10.0, audio_seconds=6.0,
-                                       spans=[(0.6, 1.9), (3.2, 5.3)])
-        self.assertEqual([c[2] for c in cues],
-                         ["A text block.", "That dash line is inside the fence."])
-        self.assertAlmostEqual(cues[0][0], 10.6)
-        self.assertAlmostEqual(cues[0][1], 11.9)
-        self.assertAlmostEqual(cues[1][0], 13.2)
-        self.assertAlmostEqual(cues[1][1], 15.3)
-
-    def test_sentences_share_their_span_by_length(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            slide = parse_lecture(lecture(tmp, TWO_SLIDES)).slides[0]
-        cues = captions.cues_for_slide(slide, start=0.0, audio_seconds=3.0,
-                                       spans=[(0.5, 2.5)])
-        self.assertEqual(len(cues), 1)
-        self.assertAlmostEqual(cues[0][0], 0.5)
-        self.assertAlmostEqual(cues[0][1], 2.5)
-
-    def test_spans_that_dont_match_fall_back_to_proportional(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            slide = parse_lecture(lecture(tmp, TWO_SLIDES)).slides[1]
-        cues = captions.cues_for_slide(slide, start=10.0, audio_seconds=4.5,
-                                       spans=[(0.6, 1.9)])
-        self.assertAlmostEqual(cues[0][0], 10.0)
-        self.assertAlmostEqual(cues[-1][1], 14.5)
 
     def test_long_sentences_are_split(self):
         text = "word " * 60

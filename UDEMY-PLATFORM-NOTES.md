@@ -442,3 +442,42 @@ First quality review of a TTS-narrated video course (course 7385221,
   course STATUS.md) is the defence.
 * Fixes are then marked "Mark as fixed" per item on
   `/manage/feedback/course` before "Resubmit for review".
+
+## 23. Trust & Safety TTS affidavit: you must hold the rights to the voice
+
+On 2026-10-27 Udemy Trust & Safety emailed the owner: one or more courses
+"may feature voices or images of third parties that are inconsistent with
+information submitted in your instructor profile". Udemy accepts TTS and AI
+narration, but the instructor must sign an affidavit, within 14 days,
+confirming they "possess the necessary rights" to it, or the courses risk
+being disabled and the account actioned. Editing a course to remove content
+before signing is allowed on request. (The email said a form was attached;
+none was. Ask for it through the instructor messages or a support ticket,
+not a link in an email.)
+
+What it means for the kit:
+
+* **The affidavit asks about rights, not price.** The earlier stance, "edge
+  is fine for a free course, switch to azure before charging", was wrong.
+  edge-tts drives the Edge browser's Read Aloud service, a consumer feature
+  with no grant to publish its audio. A free Udemy course still runs on a
+  commercial platform, and its Bonus Lecture sells the paid courses. So the
+  kit dropped the `edge` engine in 1.5.0 and refuses a config that names it.
+* **Azure Speech is the licensed route to the same voices** (`engine =
+  "azure"`, same `en-GB-RyanNeural`). Its free tier (0.5M neural characters a
+  month at the time of writing) covers a one-hour course, about 55k
+  characters. Check Microsoft's current terms rather than this note.
+* **Promo videos too.** Each course's vendored `tools/promo_video/build.py`
+  (and the practice-test repos' `promo/build.py`) called edge-tts directly.
+  They now call Azure's REST endpoint with the same key and region variables.
+  The `udemy-course-check` skill fails any repo with `import edge_tts` or an
+  `edge-tts` requirement anywhere outside `.venv`/`build`.
+* **Use a stock synthetic voice, never one imitating a real person**, and
+  keep the AI disclosure (section 21). Consider saying in the instructor bio
+  that courses use AI text-to-speech narration, since the trigger was a
+  mismatch with the profile.
+* **Re-voicing is a rebuild and re-upload:** `ptkit video build` with the
+  azure engine (the cache key includes the engine, so every slide is
+  re-synthesised), then replace each lecture's video and captions, and the
+  promo video. Watch for section 18: replacing videos marks every lecture as
+  a free preview.

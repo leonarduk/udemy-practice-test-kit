@@ -10,13 +10,6 @@ Engines:
           stays zero-dependency, so no Azure SDK. Reads the key and region
           from environment variables named in video-course.toml; the key is
           never written to disk or printed.
-  edge    The same neural voices through the `edge-tts` package (7.3.1+),
-          which talks to the Edge browser's read-aloud service: no key, no
-          Azure resource. That service is not a licensed TTS product -- check
-          its terms before using it for paid content -- and it accepts plain
-          text only, so pronunciations are substituted into the spoken text
-          and [pause] markers become silence between separately synthesised
-          chunks. `edge-tts` is optional: install it only to use this engine.
   silent  Silence of the estimated spoken length. For previewing slide
           timing, captions and the full build before spending any TTS quota,
           and for tests and CI, which have no key.
@@ -27,7 +20,6 @@ changes makes no network calls at all.
 """
 
 import hashlib
-import json
 import os
 import re
 import struct
@@ -125,15 +117,13 @@ def synthesise(slide, config, cache_dir, lecture_stem):
         return _recorded(slide, config, cache_dir, lecture_stem)
     ssml = to_ssml(slide.narration, config)
     path = cache_dir / f"{cache_key(ssml, config)}.wav"
-    if path.exists() and (config.engine != "edge" or speech_spans(path) is not None):
+    if path.exists():
         return path, False
     if config.engine == "silent":
         seconds = slide.word_count * 60 / config.words_per_minute + slide.pauses_seconds()
         write_silence(path, max(seconds, 0.5))
     elif config.engine == "azure":
         _azure(ssml, config, path)
-    elif config.engine == "edge":
-        _edge(slide.narration, config, path)
     else:  # VideoConfig already rejects unknown engines; belt and braces
         raise ConfigError(f"unknown engine {config.engine!r}")
     return path, True
@@ -210,121 +200,4 @@ def _azure(ssml, config, path):
     # Write via a temp name so an interrupted download never poisons the cache.
     partial = path.with_suffix(".partial")
     partial.write_bytes(audio)
-    partial.replace(path)
-
-
-def edge_chunks(narration, config):
-    """[("say", text) | ("pause", seconds)] for the edge engine.
-
-    edge-tts escapes its input, so SSML <sub>/<break> cannot be passed
-    through: each pronunciation is replaced by its spoken form in the text
-    itself (captions still come from the narration, so they keep the written
-    term), and each [pause] becomes a gap between synthesised chunks.
-    """
-    def spoken(text):
-        if config.pronounce:
-            text = _pronounce_pattern(config).sub(
-                lambda match: config.pronounce[match.group(0)], text)
-        return " ".join(text.split())
-
-    chunks = []
-    position = 0
-    for match in _PAUSE.finditer(narration):
-        if text := spoken(narration[position:match.start()]):
-            chunks.append(("say", text))
-        amount, unit = match.groups()
-        chunks.append(("pause", float(amount) / (1000 if unit.lower() == "ms" else 1)))
-        position = match.end()
-    if text := spoken(narration[position:]):
-        chunks.append(("say", text))
-    return chunks
-
-
-# A sample louder than this (about -40 dBFS) counts as speech when finding
-# where an edge-tts chunk's speech starts and ends.
-SPEECH_THRESHOLD = 330
-
-
-def speech_bounds(frames):
-    """(first, last) speaking sample of 16-bit mono PCM, or None if silent.
-
-    edge-tts pads every chunk with roughly 0.6 s of silence before the speech
-    and 0.7 s after it. Captions must follow the speech, not the padding.
-    """
-    samples = memoryview(frames).cast("h")
-    first = next((i for i, s in enumerate(samples) if abs(s) > SPEECH_THRESHOLD), None)
-    if first is None:
-        return None
-    last = next(i for i in range(len(samples) - 1, first - 1, -1)
-                if abs(samples[i]) > SPEECH_THRESHOLD)
-    return first, last + 1
-
-
-def spans_path(wav_path):
-    return Path(wav_path).with_suffix(".spans.json")
-
-
-def speech_spans(wav_path):
-    """[(start, end)] seconds of real speech per spoken chunk, or None.
-
-    Written by the edge engine next to each cached slide WAV, one span per
-    text chunk between [pause] markers, so captions can be timed to the
-    speech itself.
-    """
-    path = spans_path(wav_path)
-    if not path.exists():
-        return None
-    return [tuple(span) for span in json.loads(path.read_text(encoding="utf-8"))]
-
-
-def edge_rate(rate):
-    """edge-tts wants a signed percentage: "0%" -> "+0%"."""
-    return rate if rate[:1] in "+-" else f"+{rate}"
-
-
-def _edge(narration, config, path):
-    try:
-        import edge_tts
-    except ImportError as exc:
-        raise ConfigError(
-            "engine = \"edge\" needs the edge-tts package (7.3.1 or later): "
-            "pip install \"edge-tts>=7.3.1\""
-        ) from exc
-    import asyncio
-    import tempfile
-    from .build import run  # build imports this module; avoid the cycle
-
-    frames = []
-    spans = []      # where each chunk's speech really is, for the captions
-    position = 0    # samples written so far
-    with tempfile.TemporaryDirectory() as tmp:
-        for number, (kind, value) in enumerate(edge_chunks(narration, config)):
-            if kind == "pause":
-                frames.append(struct.pack("<h", 0) * int(value * SAMPLE_RATE))
-                position += int(value * SAMPLE_RATE)
-                continue
-            mp3 = Path(tmp) / f"{number}.mp3"
-            wav = Path(tmp) / f"{number}.wav"
-            try:
-                asyncio.run(edge_tts.Communicate(
-                    value, config.voice, rate=edge_rate(config.rate)).save(str(mp3)))
-            except Exception as exc:  # network errors, 403 from an old edge-tts
-                raise ConfigError(f"edge-tts failed: {exc}") from exc
-            run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(mp3),
-                 "-ac", "1", "-ar", str(SAMPLE_RATE), "-sample_fmt", "s16", str(wav)])
-            with wave.open(str(wav), "rb") as audio:
-                chunk = audio.readframes(audio.getnframes())
-            bounds = speech_bounds(chunk) or (0, len(chunk) // 2)
-            spans.append([(position + bounds[0]) / SAMPLE_RATE,
-                          (position + bounds[1]) / SAMPLE_RATE])
-            frames.append(chunk)
-            position += len(chunk) // 2
-    # The spans go first: a cached WAV without them is re-synthesised.
-    spans_path(path).write_text(json.dumps(spans), encoding="utf-8")
-    partial = path.with_name(path.stem + ".partial.wav")
-    with wave.open(str(partial), "wb") as out:
-        out.setnchannels(1)
-        out.setsampwidth(2)
-        out.setframerate(SAMPLE_RATE)
-        out.writeframes(b"".join(frames))
     partial.replace(path)

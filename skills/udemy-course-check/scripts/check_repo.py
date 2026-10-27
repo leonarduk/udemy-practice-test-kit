@@ -140,10 +140,13 @@ def check_video(root, args, manifest):
         report("PASS" if r.returncode == 0 else "FAIL", "verify_samples.py", last)
 
     engine = cfg.get("voice", {}).get("engine", "recorded")
-    if engine in ("edge", "azure"):
-        report("WARN", f"narration engine '{engine}' (synthetic voice)",
-               "needs the AI disclosure [21]; run the pronunciation pass before upload" +
-               ("; edge-tts is not a licensed TTS product -- use azure before charging" if engine == "edge" else ""))
+    if engine == "edge":
+        report("FAIL", "narration engine 'edge'",
+               "edge-tts audio carries no right to publish, and Udemy asks TTS instructors to "
+               "sign that they hold it [23] -- switch to azure and rebuild every lecture and the promo")
+    elif engine == "azure":
+        report("WARN", "narration engine 'azure' (synthetic voice)",
+               "needs the AI disclosure [21]; run the pronunciation pass before upload")
 
     lectures_dir = root / cfg.get("video", {}).get("lectures_dir", "lectures")
     build = root / cfg.get("video", {}).get("build_dir", "build")
@@ -234,6 +237,27 @@ def check_practice(root, manifest):
     manifest["exams"] = exams
 
 
+EDGE_TTS = re.compile(r"^\s*(?:import edge_tts|from edge_tts|edge-tts\b)", re.MULTILINE)
+SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "build", "out", "__pycache__"}
+
+
+def check_voice_rights(root):
+    """No edge-tts anywhere, promo builders included [23].
+
+    Its audio carries no right to publish, and Udemy asks TTS instructors to
+    sign that they hold that right, so a promo voiced with it is as exposed
+    as a lecture.
+    """
+    hits = []
+    for path in root.rglob("*"):
+        if SKIP_DIRS.intersection(path.relative_to(root).parts) or not path.is_file():
+            continue
+        if path.suffix == ".py" or (path.suffix == ".txt" and path.name.startswith("requirements")):
+            if EDGE_TTS.search(path.read_text(encoding="utf-8", errors="replace")):
+                hits.append(str(path.relative_to(root)))
+    report("FAIL" if hits else "PASS", "no edge-tts narration, promo included [23]", ", ".join(hits))
+
+
 def check_kit_pin(root):
     """Installed ptkit must be the commit requirements-dev.txt pins, or results mislead."""
     req = root / "requirements-dev.txt"
@@ -271,6 +295,7 @@ def main():
     print(f"Course repo: {root}  ({kind})\n")
     manifest = {"repo": str(root)}
     check_kit_pin(root)
+    check_voice_rights(root)
     manifest["listing"] = check_listing(root, kind)
     if kind == "video":
         if not shutil.which("ffprobe"):
