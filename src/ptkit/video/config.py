@@ -13,7 +13,21 @@ from ..config import ConfigError
 
 CONFIG_NAME = "video-course.toml"
 
-ENGINES = ("recorded", "azure", "edge", "silent")
+ENGINES = ("recorded", "azure", "silent")
+
+# Removed in 1.5.0. edge-tts drives the Edge browser's Read Aloud service,
+# which grants no right to publish its audio. Udemy Trust & Safety asks
+# instructors of TTS courses to sign an affidavit that they hold the rights
+# to the voice (UDEMY-PLATFORM-NOTES.md 23), and audio from that service
+# can't back that up. Azure Speech is the licensed route to the same voices.
+_REMOVED_ENGINES = {
+    "edge": "engine \"edge\" was removed in ptkit 1.5.0: edge-tts uses the "
+            "Edge browser's Read Aloud service, which gives no right to publish "
+            "its audio, and Udemy asks TTS instructors to swear they hold that "
+            "right (UDEMY-PLATFORM-NOTES.md 23). Use engine = \"azure\" -- the "
+            "same voice names, licensed through an Azure Speech resource (the "
+            "free tier covers a course) -- or \"recorded\"",
+}
 
 
 def find_config(start=None):
@@ -75,6 +89,8 @@ class VideoConfig:
         # policy@udemy.com before relying on synthetic narration). Azure is
         # for drafts and for small post-publication edits.
         self.engine = voice.get("engine", "recorded")
+        if self.engine in _REMOVED_ENGINES:
+            raise ConfigError(f"{self.path}: {_REMOVED_ENGINES[self.engine]}")
         if self.engine not in ENGINES:
             raise ConfigError(
                 f"{self.path}: [voice] engine = {self.engine!r}; expected one "

@@ -130,8 +130,7 @@ def _assemble_audio(lecture, clips, config, out_path):
             lead = _silence(config.lead_in)
             tail = _silence(config.tail)
             out.writeframes(lead + frames + tail)
-            cues += captions.cues_for_slide(slide, clock + config.lead_in, seconds,
-                                            speech.speech_spans(clip))
+            cues += captions.cues_for_slide(slide, clock + config.lead_in, seconds)
             span = (len(lead) + len(frames) + len(tail)) / 2 / speech.SAMPLE_RATE
             spans.append(span)
             clock += span

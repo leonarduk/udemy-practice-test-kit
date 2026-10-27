@@ -341,7 +341,6 @@ Marp VS Code preview shows the script as notes). Directive comments such as
 |---|---|---|
 | `recorded` (default) | your takes in `recordings/<lecture>/slide-NNN.{wav,m4a,mp3,flac}`, high-passed and loudness-normalised to -19 LUFS | the published course |
 | `azure` | Azure Neural TTS over REST (stdlib `urllib`; key/region from `AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION`) | drafts; small fixes after publishing |
-| `edge` | the same neural voices via the optional `edge-tts` package (7.3.1+), which uses the Edge browser's read-aloud service: no key. Pronunciations are substituted into the text and `[pause]` markers become silence between chunks. Not a licensed TTS product -- check its terms before paid use | keyless drafts; courses that accept that trade-off |
 | `silent` | silence of the estimated length | previewing slides, pacing and captions for free; CI |
 
 `recorded` is the default because Udemy's reviewers have rejected courses
@@ -349,6 +348,15 @@ narrated entirely by text-to-speech, and staff have said TTS may be used for
 edits but not to replace the instructor. This comes from instructor-community
 threads (2023-2025), not an official policy page -- ask policy@udemy.com
 before relying on synthetic narration for a whole course.
+
+**No `edge` engine (removed in 1.5.0).** It drove the Edge browser's Read
+Aloud service through `edge-tts`: no key, but no right to publish the audio
+either, free course or paid. Udemy Trust & Safety asks instructors of TTS
+courses to sign an affidavit that they hold the rights to the voice
+(`UDEMY-PLATFORM-NOTES.md` 23), and eight courses built on `edge` had to be
+re-voiced. A config that still says `engine = "edge"` now fails to load with
+that reason. Synthetic voices come from `azure`, a licensed service whose
+free tier covers a course.
 
 **Timing is exact, not re-derived.** One WAV per lecture is assembled
 sample-exactly in Python (lead-in + slide audio + tail per slide) and each
@@ -359,10 +367,7 @@ the captions.
 
 **Captions come from the script**, not speech recognition, so exam codes and
 API names are spelled right. Sentence timing within a slide is shared out by
-character count. With the `edge` engine it is shared out within each chunk's
-measured speech: edge-tts pads every chunk between `[pause]` markers with
-about 0.6 s of silence before and 0.7 s after, which otherwise put captions
-up to ~2.7 s ahead of the voice (kit 1.4.2). Terms the voice mangles go in `[pronounce]` (applied as SSML
+character count. Terms the voice mangles go in `[pronounce]` (applied as SSML
 `<sub alias>`), which changes the speech and leaves the captions alone.
 
 **Caching.** Synthesised audio is keyed by (engine, voice, rate, SSML) and
