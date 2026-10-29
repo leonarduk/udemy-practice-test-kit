@@ -548,3 +548,17 @@ lecture after any replacement.
 
 * **Confirmed:** course 7403093, 2026-10-29, by reading the quiz, the
   curriculum and the course fields before and after each step.
+
+## 27. "Course landing page" stays incomplete until the Topic is set
+
+With title, subtitle, description, language, level, category,
+subcategory, course image and a processed promo video all saved, the
+editor checklist still showed "Course landing page" incomplete. The
+missing field was **"What is primarily taught in your course?"** (Topic),
+an autocomplete over Udemy's own topic list that also offers "Propose new
+topic". Choosing an existing topic ("AI Agents & Agentic AI") and saving
+marked the item complete. Pick an existing topic rather than proposing one,
+and record it in the listing, since students see it.
+
+* **Confirmed:** course 7403093, 2026-10-29, by reading the course's
+  `manage-menu` checklist before and after saving the topic.
