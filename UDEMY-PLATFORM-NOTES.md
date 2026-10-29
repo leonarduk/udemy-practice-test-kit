@@ -523,3 +523,28 @@ uploaded while they were processing were accepted (as in section 13).
 
 * **Confirmed:** course 7403093, 2026-10-29, by reading
   `instructor-curriculum-items` and the course fields before and after.
+
+## 26. Deleting a practice test: 204 at once, gone minutes later
+
+`DELETE /api-2.0/courses/{course}/quizzes/{id}/` (the call the curriculum
+editor's own Delete button makes, after its "Please confirm" dialog)
+returned **204**, yet the test stayed: `GET .../quizzes/{id}/` still
+answered 200, it stayed in `instructor-curriculum-items` across reloads,
+and the course still reported `num_practice_tests: 1`. Repeating the
+DELETE, unpublishing the test (`PATCH {"is_published": false}`), and saving
+the curriculum order without it changed nothing at the time. Some minutes
+later the quiz returned 404 and the curriculum no longer had it. So after a
+204, wait and re-read; don't keep re-sending.
+
+A Draft course's Pricing tab accepted "Free" only after that: saved with
+"Your changes have been successfully saved", `price: "Free"`, and the
+Pricing checklist item complete. Whether it would have refused Free while
+the practice test still existed was not tested.
+
+Also, replacing the videos of lectures 1 and 13 (Edit Content, then Select
+Video) set `is_free: true` on lecture **2**, which neither replacement
+touched. That is more evidence for section 18: re-read `is_free` on every
+lecture after any replacement.
+
+* **Confirmed:** course 7403093, 2026-10-29, by reading the quiz, the
+  curriculum and the course fields before and after each step.
