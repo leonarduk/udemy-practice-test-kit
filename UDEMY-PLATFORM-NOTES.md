@@ -481,3 +481,45 @@ What it means for the kit:
   re-synthesised), then replace each lecture's video and captions, and the
   promo video. Watch for section 18: replacing videos marks every lecture as
   a free preview.
+
+## 24. A practice test inside a video course, through the API
+
+A practice test can be added to a video course's curriculum with the same
+call as a lecture quiz (section 19), with `type: "practice-test"`:
+`POST /api-2.0/courses/{course}/quizzes/` `{title, description, type:
+"practice-test", duration, pass_percent}`. `duration` is required, in
+**seconds**: without it the call returns **400 `{"duration":["duration
+cannot be null"]}`**. `pass_percent` is a whole number. The new test comes
+back `is_published: true` and unplaced, so save the curriculum order
+(section 15) with `{"id", "class": "quiz", "is_published": true}` where it
+belongs.
+
+The CSV then goes in through the test's own editor (the "+" by Questions,
+then Bulk upload). Uploading into the empty test kept the duration, pass
+mark and description set at creation, unlike a re-upload (section 4).
+Afterwards live and `?draft=true` assessments were identical.
+
+* **Confirmed:** course 7403093 (Where AI Agents Run), 2026-10-29: test
+  8011363 read back with `duration` 1800 and `pass_percent` 70 after a
+  23-question upload; keys matched the CSV.
+
+## 25. A new course starts free, in English (US), with a placeholder section
+
+The create wizard (`/course/create/1` to `4`: type, working title,
+category, time commitment) makes a Draft with one "Introduction" section
+holding one empty "Introduction" lecture. Rename those two (section 15)
+rather than creating new ones, or they stay in the curriculum. The course
+starts **free** (`is_paid: false`, price "Free"), in locale **en_US**, so
+captions uploaded before any change are stored as `en_US`. A paid course
+with a practice test has to have its price set before submission (section
+16).
+
+Lecture videos went up through the curriculum editor: "Add Content", then
+"Video", then Claude in Chrome's `file_upload` on the lecture's
+`input[name=asset]`. Thirteen files of 3 to 10 MB were sent one after
+another, about 5 seconds apart, and every one attached to the right
+lecture. All 13 finished processing within about 20 minutes, and captions
+uploaded while they were processing were accepted (as in section 13).
+
+* **Confirmed:** course 7403093, 2026-10-29, by reading
+  `instructor-curriculum-items` and the course fields before and after.
