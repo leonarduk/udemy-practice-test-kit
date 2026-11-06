@@ -581,3 +581,36 @@ screen, a sign or a book cover is at risk too.
   replacement, nothing.
 * **Confirmed:** course 7403093, review feedback read 2026-11-04 on
   `/manage/feedback/course`; the OCR result was checked on both images.
+
+## 29. Replacing videos: an upload can attach to the wrong lecture
+
+Replacing all 13 videos of a live course (2026-11-06), three uploads landed
+on the wrong lecture: 04-01's file on lecture 1, 01-01's on lecture 8, and
+04-01's again on lecture 9. Students saw the wrong video until each was
+fixed. The cause was in the editor's state, not the file: the curriculum
+page keeps every "Edit Content" panel it has opened, and the upload uses the
+lecture its own state picks, which was not the panel whose input received
+the file. Even after a reload with a single panel open and checked to sit
+inside the target lecture's box, the attach call went to the next lecture.
+
+How the editor attaches a replacement (captured):
+`POST /api-2.0/users/me/video-assets/` (201) creates the asset, then
+`POST /api-2.0/users/me/taught-courses/{course}/lectures/{id}/assets/` (201)
+attaches it. That `{id}` is the lecture it lands on. It also sent
+`PATCH .../lectures/{next id}/?fields[lecture]=is_free` to a **different**
+lecture: the likely mechanism behind section 18.
+
+An asset can be attached only once: posting an existing asset id to another
+lecture returns **400 `{"detail":"Asset already in use"}`**, so a misrouted
+file has to be uploaded again.
+
+What worked, for all 13: before each upload, wrap `XMLHttpRequest.open` and
+`fetch` in the page so a POST to `.../lectures/{any}/assets/` is rewritten to
+the intended lecture id (one-shot, then cleared), then upload, then read
+`instructor-curriculum-items` and confirm the lecture's `asset.title` is the
+expected file. Never batch: one upload, one check.
+
+* **Afterwards:** re-read `is_free` on every lecture (all 13 were set) and
+  re-upload every caption, since each replacement is a new asset (§17, §18).
+* **Confirmed:** course 7403093, 2026-11-06, from the captured requests and
+  by reading each lecture's asset title after every upload.
