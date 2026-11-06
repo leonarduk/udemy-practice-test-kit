@@ -2,6 +2,10 @@
 
 Usage (from the course repo root):
     python check_repo.py [--jdk-bin DIR] [--skip-samples] [--manifest OUT.json]
+                         [--course-image PATH_OR_URL]
+
+--course-image checks an image other than platforms/udemy/course-image.*, for
+example the live one: the course API's image_750x422 URL.
 
 Detects the course type:
   video          video-course.toml (ptkit video: lectures/*.md -> build/*.mp4 + .vtt)
@@ -279,11 +283,66 @@ def check_kit_pin(root):
            ("" if same else " -- pip install --force-reinstall --no-deps -r requirements-dev.txt, then re-run"))
 
 
+COURSE_IMAGE_NAMES = ("course-image.jpg", "course-image.jpeg", "course-image.png")
+
+
+def check_course_image(root, override=None):
+    """The course image must carry no text, a logo aside [28].
+
+    Udemy's review rejected an image whose screen mock-up read "ONA EXECUTION"
+    and "CLOUD EXECUTION". OCR (rapidocr) finds text like that; anything it
+    reads with confidence is a FAIL, because the reviewer will read it too.
+    Also checks Udemy's size rules: at least 750x422, 16:9.
+    """
+    source = override
+    if not source:
+        found = [root / "platforms" / "udemy" / n for n in COURSE_IMAGE_NAMES]
+        found = [p for p in found if p.exists()]
+        if not found:
+            report("WARN", "course image in repo [28]",
+                   "save the image you upload as platforms/udemy/course-image.jpg so it can be "
+                   "checked for text, or pass --course-image PATH_OR_URL")
+            return
+        source = str(found[0])
+    path = source
+    if source.startswith(("http://", "https://")):
+        import urllib.request
+        path = str(Path(tempfile.gettempdir()) / ("udemy-course-image" + (Path(source).suffix or ".jpg")))
+        try:  # Udemy's CDN answers 403 to urllib's default User-Agent
+            request = urllib.request.Request(source, headers={"User-Agent": "udemy-course-check"})
+            with urllib.request.urlopen(request, timeout=60) as response:
+                Path(path).write_bytes(response.read())
+        except OSError as exc:
+            report("WARN", "no text in course image [28]", f"could not download {source}: {exc}")
+            return
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            w, h = im.size
+        ratio_ok = abs(w / h - 16 / 9) < 0.02
+        report("PASS" if w >= 750 and h >= 422 and ratio_ok else "WARN",
+               "course image at least 750x422, 16:9", f"{w}x{h}")
+    except ImportError:
+        report("WARN", "course image size", "Pillow not installed")
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+    except ImportError:
+        report("WARN", "no text in course image [28]",
+               "OCR unavailable: pip install rapidocr-onnxruntime, then re-run (or check by eye)")
+        return
+    found_text, _ = RapidOCR()(path)
+    words = [t for _, t, s in (found_text or []) if float(s) >= 0.5 and sum(c.isalnum() for c in t) >= 2]
+    report("FAIL" if words else "PASS", "no text in course image [28]",
+           ("reads: " + ", ".join(repr(w) for w in words) +
+            " -- Udemy allows text only in a logo; use an image without it") if words else source)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jdk-bin", help="JDK bin directory to put first on PATH for verify_samples.py")
     ap.add_argument("--skip-samples", action="store_true")
     ap.add_argument("--manifest", help="where to write the manifest JSON")
+    ap.add_argument("--course-image", help="image file or URL to check instead of platforms/udemy/course-image.*")
     args = ap.parse_args()
     root = Path.cwd()
     if (root / "video-course.toml").exists():
@@ -297,6 +356,7 @@ def main():
     check_kit_pin(root)
     check_voice_rights(root)
     manifest["listing"] = check_listing(root, kind)
+    check_course_image(root, args.course_image)
     if kind == "video":
         if not shutil.which("ffprobe"):
             report("FAIL", "ffprobe on PATH", "needed for length checks")

@@ -562,3 +562,22 @@ and record it in the listing, since students see it.
 
 * **Confirmed:** course 7403093, 2026-10-29, by reading the course's
   `manage-menu` checklist before and after saving the topic.
+
+## 28. No text in the course image (a logo aside)
+
+The first review of course 7403093 came back "Needs fixes" with one required
+item, Course Image: the image "includes text \"ONA EXECUTION - CLOUD
+EXECUTION\"". Udemy only allows text in course images "in very limited cases
+- primarily in the context of a logo". The text was two labels on a computer
+screen inside an illustration, not a title, so a generated image that draws a
+screen, a sign or a book cover is at risk too.
+
+* **Fix used:** the same illustration regenerated without the labels;
+  resubmitted, and the course went live.
+* **Guarded by:** `check_repo.py` in the udemy-course-check skill OCRs
+  `platforms/udemy/course-image.*` (or `--course-image PATH_OR_URL`, such as
+  the live `image_750x422`) with rapidocr and FAILs on any text it reads. On
+  the rejected image it read "ONA EXECUTION", "EXECUTION" and "CLOUD"; on the
+  replacement, nothing.
+* **Confirmed:** course 7403093, review feedback read 2026-11-04 on
+  `/manage/feedback/course`; the OCR result was checked on both images.
