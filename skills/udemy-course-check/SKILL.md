@@ -65,6 +65,13 @@ python ~/.claude/skills/udemy-course-check/scripts/check_repo.py --jdk-bin "C:/P
   short period (exams 4–6 of the Java 25 bank cycle A, B, C, D) or one letter
   holds more than 40%.
 
+**Course image (both kinds):** no text in it, a logo aside (notes §28), at
+least 750x422 and 16:9. Keep the image you upload as
+`platforms/udemy/course-image.jpg`; the script OCRs it with `rapidocr`
+(`pip install rapidocr-onnxruntime` once) and FAILs on any text it reads. A
+reviewer rejected an image whose screen mock-up read "ONA EXECUTION". Check an
+image before it goes up, not after the review.
+
 **Both kinds:** the installed ptkit must be the exact commit the repo pins.
 Otherwise `generate --check` and the video checks report false failures, so
 the script FAILs it first. Fix that and re-run before trusting anything else.
@@ -92,7 +99,9 @@ the script FAILs it first. Fix that and re-run before trusting anything else.
 - Title and subtitle match the listing.
 - The description opens with the AI disclosure, has no `<a>` links, and has
   real bullets.
-- The image is set, and the promo video is reported.
+- The image is set, and the promo video is reported. Then OCR the live image
+  too: `check_repo.py --course-image <image_750x422 URL>` (the course API's
+  field; the check's FAIL list says if it has text) [28].
 - The editor checklist is complete.
 - The curriculum matches the listing table in order, with "Bonus Lecture" last.
 - Every lecture has a processed video whose file name matches the build, and
