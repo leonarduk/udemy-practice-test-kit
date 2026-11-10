@@ -31,9 +31,19 @@ FENCE_RE = re.compile(r"^```\w*$")
 # the same paragraph: one question lost its entire B/C/D reasoning this way.
 # Stop at the *next* sentence boundary (a ". " or the paragraph's end) instead,
 # so only the aside sentence itself is removed and whatever follows survives.
+#
+# Two things look like a ". " boundary but are not one, and both reached a live
+# course as a broken fragment ("... (package p1 is declared in module m1, which
+# does not export it to module m3).") because the aside quoted a compiler
+# message:
+#   * an ASCII ellipsis "... " -- the terminating period must not be preceded
+#     or followed by another period;
+#   * a period inside a backtick span -- quoted output/code is consumed whole,
+#     so nothing inside it can end the sentence. An unpaired backtick falls
+#     back to matching as an ordinary character.
 VERIFIED_TAIL_RE = re.compile(
     r"(?:\A|(?<=\. ))(?:Verified\b|(?:This )?[Mm]atches this module's own\b)"
-    r".*?(?:\.(?=\s)|\Z)",
+    r"(?:`[^`]*`|.)*?(?:(?<!\.)\.(?!\.)(?=\s)|\Z)",
     re.S,
 )
 

@@ -130,6 +130,41 @@ class StripLearnerTextTests(unittest.TestCase):
             "thread instead.",
         )
 
+    def test_verified_aside_quoting_an_ellipsis_is_dropped_whole(self):
+        # The aside quoted a javac message containing "... (", and the old
+        # pattern ended the match at the ellipsis' last period, leaving
+        # "(package p1 is declared in module m1, ...)." on a live course.
+        text = ("Qualified exports grant access to the named modules only. "
+                "Verified by compiling all three: `error: package p1 is not "
+                "visible ... (package p1 is declared in module m1, which does "
+                "not export it to module m3)`.")
+        self.assertEqual(
+            render(text),
+            "Qualified exports grant access to the named modules only.",
+        )
+
+    def test_verified_aside_with_unquoted_ellipsis_is_dropped_whole(self):
+        self.assertEqual(
+            render("Real content. Verified: it printed 1 ... 9 in order. "
+                   "More real content."),
+            "Real content. More real content.",
+        )
+
+    def test_verified_aside_does_not_end_inside_a_backtick_span(self):
+        # A ". " inside quoted output is not a sentence boundary, and the
+        # sentence after the aside must still survive.
+        self.assertEqual(
+            render("Real content. Verified: javac says `expected ';'. found "
+                   "'}'` here. Option B is wrong because it compiles."),
+            "Real content. Option B is wrong because it compiles.",
+        )
+
+    def test_verified_aside_with_unpaired_backtick_still_stops(self):
+        self.assertEqual(
+            render("Real content. Verified: prints ` alone. More content."),
+            "Real content. More content.",
+        )
+
     def test_drops_maintainer_note_and_keeps_the_teaching_paragraph(self):
         # An earlier version kept exactly the wrong paragraph -- it dropped
         # the real, "Verified ..."-prefixed teaching content and kept the
