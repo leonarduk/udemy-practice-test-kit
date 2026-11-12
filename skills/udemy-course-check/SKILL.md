@@ -122,7 +122,7 @@ trigger a Trust and Safety re-review. Run this before submitting, and after
 any narration change:
 
 ```bash
-pip install faster-whisper          # once; model small.en downloads on first use
+pip install faster-whisper          # once; the model downloads on first use
 python ~/.claude/skills/udemy-course-check/scripts/transcribe.py "$TEMP/stt" build/*.mp4
 python ~/.claude/skills/udemy-course-check/scripts/compare.py "$TEMP/stt" > "$TEMP/diffs.txt"
 ```
@@ -130,12 +130,28 @@ python ~/.claude/skills/udemy-course-check/scripts/compare.py "$TEMP/stt" > "$TE
 - `transcribe.py` decodes the audio with ffmpeg itself, because PyAV is broken
   on this machine.
 - `compare.py` prints every word-level difference between the narration and
-  what Whisper heard.
+  what Whisper heard. It reads `lectures/` unless you pass `--lectures-dir`
+  or `--video-config` (which reads `[video].lectures_dir`).
 - Most differences are Whisper's spelling (US vs UK, digits, a dropped "dot").
   Flag only real mishearings of technical terms, such as `openjdk` heard as
   "arpenge" or `awt` heard as "aut". The fix is a `[pronounce]` entry in
-  `video-course.toml`, then rebuilding that lecture. Propose it; don't apply
-  it in this skill.
+  `video-course.toml` (or the edition's TOML, e.g. `video-course.de.toml`),
+  then rebuilding that lecture. Propose it; don't apply it in this skill.
+
+**Non-English courses** (e.g. a German edition built from
+`video-course.de.toml` into `build-de/`): pass `--language`, which switches to
+the multilingual `small` model (`.en` models are refused), and point
+`compare.py` at the translated lectures:
+
+```bash
+python ~/.claude/skills/udemy-course-check/scripts/transcribe.py --language de "$TEMP/stt-de" build-de/*.mp4
+python ~/.claude/skills/udemy-course-check/scripts/compare.py "$TEMP/stt-de" --video-config video-course.de.toml > "$TEMP/diffs-de.txt"
+# equivalent: --lectures-dir lectures-de
+```
+
+`small` produces many false positives in German. Before flagging a term,
+re-transcribe just the lectures with suspects using `--model medium` and keep
+only the mishearings that both models share.
 
 ## 4. Report
 
